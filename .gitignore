@@ -1,0 +1,19 @@
+# Local Claude Code settings
+.claude/settings.local.json
+
+# Dependencies (cuando exista código)
+node_modules/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Build
+dist/
+.vercel/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
