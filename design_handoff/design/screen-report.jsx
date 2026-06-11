@@ -26,9 +26,22 @@ function ReportPreview({ client, tipo, onClose, onExport }) {
   }
   const header606 = `${cli.rnc}|${PERIODO.codigo}|${rows.length}`;
 
-  // Export Excel (.xlsx) — formato legible para revisión/respaldo del contador.
-  // NOTA: el archivo oficial para la DGII sigue siendo el .txt pipe-delimited;
-  // este Excel es una conveniencia, no reemplaza el envío a la Oficina Virtual.
+  const nombreArchivo = `DGII_${tipo}_${cli.rnc}_${PERIODO.codigo}`;
+
+  // Descarga el .txt pipe-delimited oficial para subir a la Oficina Virtual de la DGII
+  function exportarTxt() {
+    const lineas = [header606, ...rows.map(lineaTxt)].join('\r\n');
+    const blob = new Blob([lineas], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${nombreArchivo}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Descarga un .xlsx legible para revisión y respaldo del contador.
+  // No reemplaza el .txt oficial para la DGII.
   function exportarExcel() {
     if (typeof XLSX === 'undefined') {
       alert('No se pudo cargar el generador de Excel. Verifica tu conexión.');
@@ -49,13 +62,11 @@ function ReportPreview({ client, tipo, onClose, onExport }) {
         Number(r.monto), Number(r.itbis), r.estado];
     });
 
-    // Fila de totales
     const totalRow = is606
       ? ['', 'TOTALES', '', '', '', '', totMonto, totItbis, totRet, '']
       : ['', 'TOTALES', '', '', '', totMonto, totItbis, ''];
 
-    const aoa = [headers, ...data, totalRow];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data, totalRow]);
 
     // Formato de moneda en columnas de monto
     const montoCols = is606 ? [6, 7, 8] : [5, 6];
@@ -65,11 +76,11 @@ function ReportPreview({ client, tipo, onClose, onExport }) {
         if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '#,##0.00';
       });
     }
-    ws['!cols'] = headers.map((h) => ({ wch: Math.max(10, h.length + 2) }));
+    ws['!cols'] = headers.map((h) => ({ wch: Math.max(12, h.length + 2) }));
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, `${tipo} ${PERIODO.codigo}`);
-    XLSX.writeFile(wb, `DGII_${tipo}_${cli.rnc}_${PERIODO.codigo}.xlsx`);
+    XLSX.writeFile(wb, `${nombreArchivo}.xlsx`);
   }
 
   return (
@@ -89,9 +100,9 @@ function ReportPreview({ client, tipo, onClose, onExport }) {
           title={!puedeExportar ? 'Resuelve los errores antes de exportar' : 'Descarga una hoja Excel para revisión/respaldo'}>
           <Icon name="download" size={15}/>Exportar Excel
         </button>
-        <button className="btn btn-primary" disabled={!puedeExportar} onClick={onExport}
-          title={!puedeExportar ? 'Resuelve los errores antes de exportar' : ''}>
-          <Icon name="download" size={15}/>Exportar .txt
+        <button className="btn btn-primary" disabled={!puedeExportar} onClick={exportarTxt}
+          title={!puedeExportar ? 'Resuelve los errores antes de exportar' : 'Descarga el archivo oficial para la Oficina Virtual DGII'}>
+          <Icon name="download" size={15}/>Exportar .txt DGII
         </button>
       </div>
 
