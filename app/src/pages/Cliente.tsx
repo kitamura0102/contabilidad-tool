@@ -14,6 +14,7 @@ type Factura = {
   monto_itbis_cent: number | null
   tasa_itbis: number | null
   confidence_json: Record<string, unknown> | null
+  ultimo_error: string | null
   creado_en: string
 }
 
@@ -60,6 +61,8 @@ export default function Cliente() {
     ])
     setCliente(c)
     setFacturas(f)
+    f.filter((x: Factura) => x.estado === 'error_extraccion' && x.ultimo_error)
+      .forEach((x: Factura) => console.warn(`Factura ${x.id} falló:`, x.ultimo_error))
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -169,6 +172,14 @@ export default function Cliente() {
               <tr key={f.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                 <td style={{ padding: '10px 12px' }}>
                   <span style={estadoBadge(f.estado)}>{ESTADOS_LABEL[f.estado] ?? f.estado}</span>
+                  {f.estado === 'error_extraccion' && f.ultimo_error && (
+                    <div
+                      title={f.ultimo_error}
+                      style={{ color: '#dc2626', fontSize: 11, marginTop: 4, maxWidth: 220, cursor: 'help' }}
+                    >
+                      {friendlyError(f.ultimo_error)}
+                    </div>
+                  )}
                 </td>
                 <td style={{ padding: '10px 12px', fontFamily: 'monospace' }}>{f.rnc_emisor ?? '—'}</td>
                 <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12 }}>{f.ncf ?? '—'}</td>
@@ -183,6 +194,16 @@ export default function Cliente() {
       </div>
     </div>
   )
+}
+
+// Traduce el ultimo_error técnico a un mensaje entendible para el contador.
+// El texto crudo queda en el tooltip (title) para depuración.
+function friendlyError(msg: string): string {
+  if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg)) return 'Límite de la API de IA alcanzado. Reintenta en unos minutos.'
+  if (/\b503\b|overloaded|unavailable/i.test(msg)) return 'El servicio de IA estaba saturado. Reintenta.'
+  if (/Imagen no encontrada/i.test(msg)) return 'No se encontró la imagen. Vuelve a subirla.'
+  if (/JSON|Unexpected|SyntaxError|vac[ií]a/i.test(msg)) return 'La IA no pudo leer la factura. Verifica que la foto sea legible.'
+  return 'Error al procesar. Reintenta o corrige los datos a mano.'
 }
 
 const estadoBadge = (estado: string): React.CSSProperties => {

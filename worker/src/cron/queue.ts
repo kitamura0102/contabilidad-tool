@@ -87,6 +87,7 @@ async function processOne(
     `
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
+    console.error('processOne fallo:', factura.id, msg)
     const nuevoEstado = factura.intentos + 1 >= MAX_RETRIES
       ? 'error_extraccion'
       : 'en_cola'
