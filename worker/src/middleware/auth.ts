@@ -1,6 +1,6 @@
 import { createMiddleware } from 'hono/factory'
-import { createClerkClient } from '@clerk/backend'
-import { getDb, withUser } from '../lib/db'
+import { verifyToken } from '@clerk/backend'
+import { getDb } from '../lib/db'
 import type { Env, Variables } from '../types'
 
 export const requireAuth = createMiddleware<{ Bindings: Env; Variables: Variables }>(
@@ -10,10 +10,12 @@ export const requireAuth = createMiddleware<{ Bindings: Env; Variables: Variable
 
     let userId: string
     try {
-      const clerk = createClerkClient({ secretKey: c.env.CLERK_SECRET_KEY })
-      const payload = await clerk.verifyToken(token)
+      const payload = await verifyToken(token, {
+        secretKey: c.env.CLERK_SECRET_KEY,
+      })
       userId = payload.sub
-    } catch {
+    } catch (e) {
+      console.error('verifyToken error:', e)
       return c.json({ error: 'Token inválido' }, 401)
     }
 
