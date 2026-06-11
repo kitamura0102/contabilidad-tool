@@ -22,8 +22,8 @@ facturas.get('/', async (c) => {
       FROM facturas f
       JOIN clientes c ON c.id = f.cliente_id
       WHERE (${cliente_id ?? null}::uuid IS NULL OR f.cliente_id = ${cliente_id ?? null}::uuid)
-        AND (${estado ?? null} IS NULL OR f.estado = ${estado ?? null})
-        AND (${tipo ?? null} IS NULL OR f.tipo = ${tipo ?? null})
+        AND (${estado ?? null}::text IS NULL OR f.estado = ${estado ?? null}::text)
+        AND (${tipo ?? null}::text IS NULL OR f.tipo = ${tipo ?? null}::text)
       ORDER BY f.creado_en DESC
       LIMIT 100
     `,
