@@ -12,8 +12,11 @@ node_modules/
 # Build
 dist/
 .vercel/
+*.tsbuildinfo
 
 # OS
 Thumbs.db
 desktop.ini
 .DS_Store
+
+.vercel
