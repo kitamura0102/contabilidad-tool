@@ -12,8 +12,8 @@ type FacturaRow = {
   rnc_emisor: string | null
   ncf: string | null
   fecha_emision: string | null
-  monto_total_cent: number | null
-  monto_itbis_cent: number | null
+  monto_total_cent: string | number | null  // Neon devuelve BIGINT como string
+  monto_itbis_cent: string | number | null
   tasa_itbis: number | null
   tipo_bs: string | null
   forma_pago: string | null
@@ -25,6 +25,7 @@ type FacturaRow = {
 // formato=txt (por defecto): archivo oficial pipe-delimitado para la DGII
 // formato=xlsx: hoja Excel legible para revisión/respaldo del contador
 reportes.get('/:clienteId/:tipo/:periodo', async (c) => {
+  try {
   const userId = c.get('userId')
   const { clienteId, tipo, periodo } = c.req.param()
   const formato = c.req.query('formato') === 'xlsx' ? 'xlsx' : 'txt'
@@ -78,11 +79,17 @@ reportes.get('/:clienteId/:tipo/:periodo', async (c) => {
       'Content-Disposition': `attachment; filename="${tipo}_${periodo}.txt"`,
     },
   })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[reportes]', msg)
+    return c.json({ error: msg }, 500)
+  }
 })
 
-// Monto en pesos (número) para celdas Excel. null → 0.
-function montoPesos(cents: number | null): number {
-  return cents === null ? 0 : Number(cents) / 100
+// Monto en pesos para celdas Excel. Neon devuelve BIGINT como string.
+function montoPesos(cents: string | number | null): number {
+  if (cents === null || cents === undefined || cents === '') return 0
+  return Number(cents) / 100
 }
 
 // 606 — versión Excel legible (encabezados + fila de totales)
@@ -123,11 +130,14 @@ function excel607(rows: FacturaRow[]): Uint8Array {
 
 function formatFecha(iso: string | null): string {
   if (!iso) return ''
-  return iso.replace(/-/g, '').slice(0, 8)
+  // fecha_emision llega como "2026-05-29" (DATE) o "2026-05-29T00:00:00.000Z" (TIMESTAMPTZ)
+  return iso.slice(0, 10).replace(/-/g, '')
 }
 
-function formatMonto(cents: number | null): string {
-  if (cents === null) return ''
+// Neon devuelve BIGINT como string para evitar pérdida de precisión en JS.
+// Aceptamos string | number | null para no depender del tipo runtime del driver.
+function formatMonto(cents: string | number | null): string {
+  if (cents === null || cents === undefined || cents === '') return ''
   return fromCents(BigInt(cents))
 }
 
