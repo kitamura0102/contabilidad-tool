@@ -62,13 +62,16 @@ Los contadores en República Dominicana manejan múltiples empresas clientes sim
 
 **RNC (Registro Nacional de Contribuyentes)**
 - Formato: 9 dígitos para empresas (ej: `101234567`), 11 dígitos para personas físicas (cédula)
-- Validación: dígito verificador según algoritmo DGII. API pública en `dgii.gov.do/app/WebApps/ConsultasWeb/consultas/rnc.aspx` (formulario web, no REST). Alternativa: archivo RNC descargable mensualmente desde la DGII (~400MB CSV con todos los contribuyentes registrados).
-- **Decisión de implementación**: descargar el archivo RNC mensualmente y hacer lookups locales. Más rápido y confiable que scraping. Actualizar primero de cada mes.
+- Validación: dígito verificador según algoritmo DGII. API pública en `dgii.gov.do/app/WebApps/ConsultasWeb/consultas/rnc.aspx` (formulario web, no REST). Alternativa: archivo RNC descargable desde `https://dgii.gov.do/app/WebApps/Consultas/RNC/DGII_RNC.zip` (~1.5M registros, TXT pipe-delimitado `|`, 9 columnas, actualización semanal).
+- **Decisión de implementación**: descargar el ZIP del padrón y hacer lookups locales. Más rápido y confiable que scraping. Actualizar primero de cada mes. Importar solo 3 columnas: RNC/Cédula, Nombre/Razón Social, Estado.
 - **Indexado**: importar el archivo a una tabla de base de datos con índice en columna RNC. No hacer full-file scan por query. Job background mensual para actualizar.
 
 **NCF (Número de Comprobante Fiscal)**
-- Formato: letra `B` + 2 dígitos de tipo + 8 dígitos secuenciales. Ej: `B0100000001`
-- Tipos relevantes: B01 (crédito fiscal), B02 (consumidor final), B14 (régimen especial), B15 (gubernamental)
+- Formato tradicional: `B` + 2 dígitos tipo + 8 secuencial = 11 chars. Ej: `B0100000001`
+- Formato e-NCF (electrónico): `E` + 2 dígitos tipo + 10 secuencial = 13 chars. Ej: `E310000033552`
+- **En campo real (Sprint 0): 2 de 3 facturas usan e-NCF.** Ambos formatos coexisten hoy.
+- Regex de validación: `/^[BE]\d{10,12}$/` — acepta ambos
+- Tipos relevantes: B01/E31 (crédito fiscal), B02 (consumidor final), B14 (régimen especial), B15 (gubernamental)
 - El NCF va en la columna 4 del 606 y columna 3 del 607
 
 **Formato 606 (registro de compras)**
@@ -326,7 +329,7 @@ Ventas (607):                                         ▼
                                            ▼
                               Validación local:
                               • RNC checksum + lookup padrón (tabla indexada)
-                              • NCF formato (B01/B02/B14/B15)
+                              • NCF formato (B01/B02/B14/B15 tradicional o E31/E32 e-NCF)
                               • Montos → centavos BIGINT
                                            │
                           ┌────────────────┴────────────────┐
