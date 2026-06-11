@@ -83,8 +83,27 @@ export default function Cliente() {
   async function handleDownload(tipo: '606' | '607', formato: 'txt' | 'xlsx' = 'txt') {
     const token = await getToken()
     if (!token || !id) return
-    await downloadReporte(token, id, tipo, periodo, formato)
+    if (procesadasDelPeriodo === 0) {
+      alert(
+        `No hay facturas procesadas en ${periodo.slice(4, 6)}/${periodo.slice(0, 4)}.\n\n` +
+        'Solo se exportan las facturas en estado "Procesada" — las que están en error o ' +
+        'pendientes de revisión se omiten automáticamente. Revisa el período seleccionado.'
+      )
+      return
+    }
+    try {
+      await downloadReporte(token, id, tipo, periodo, formato)
+    } catch (err) {
+      alert(`No se pudo exportar el reporte:\n${err instanceof Error ? err.message : String(err)}`)
+    }
   }
+
+  // Facturas procesadas que caen en el período seleccionado (lo que realmente se exporta).
+  // Los errores y pendientes de revisión se excluyen, igual que en el backend.
+  const periodoYM = `${periodo.slice(0, 4)}-${periodo.slice(4, 6)}`
+  const procesadasDelPeriodo = facturas.filter(
+    f => f.estado === 'procesada' && f.fecha_emision?.slice(0, 7) === periodoYM
+  ).length
 
   const formatMonto = (cents: number | null) => {
     if (cents === null) return '—'
@@ -135,14 +154,15 @@ export default function Cliente() {
           />
           <button
             onClick={() => handleDownload(tab === 'compra' ? '606' : '607')}
-            style={btnSecStyle}
+            style={{ ...btnSecStyle, opacity: procesadasDelPeriodo === 0 ? 0.5 : 1 }}
             title="Archivo oficial para subir a la Oficina Virtual de la DGII"
           >
             Exportar {tab === 'compra' ? '606' : '607'} (.txt)
+            {procesadasDelPeriodo > 0 && <span style={{ opacity: 0.6 }}> · {procesadasDelPeriodo}</span>}
           </button>
           <button
             onClick={() => handleDownload(tab === 'compra' ? '606' : '607', 'xlsx')}
-            style={btnSecStyle}
+            style={{ ...btnSecStyle, opacity: procesadasDelPeriodo === 0 ? 0.5 : 1 }}
             title="Hoja Excel para revisión o respaldo (no reemplaza el .txt de la DGII)"
           >
             Excel
