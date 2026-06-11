@@ -19,7 +19,7 @@ Herramienta web para contadores independientes en República Dominicana que mane
 | Frontend | React + TypeScript + Vite (SPA) |
 | Backend | Supabase (Postgres, Auth, Storage, RLS, Edge Functions, pg_cron) |
 | Hosting | Vercel |
-| IA/OCR | Gemini 2.0 Flash (solo vía Edge Function) |
+| IA/OCR | Gemini 3.5 Flash (solo vía Edge Function) |
 | CI/CD | GitHub Actions |
 
 Costo: $0/mes en tiers gratuitos hasta tener clientes pagando.

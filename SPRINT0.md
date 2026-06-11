@@ -6,7 +6,7 @@ Gate antes de escribir código. Llenar sobre la marcha.
 
 - [ ] Paso 1 — Pedir 10 facturas variadas al contador (sin curar)
 - [ ] Paso 2 — Verificar dump del padrón RNC en dgii.gov.do
-- [ ] Paso 3 — Abrir Google AI Studio (Gemini 2.0 Flash)
+- [ ] Paso 3 — Abrir Google AI Studio (Gemini 3.5 Flash)
 - [ ] Paso 4 — Carpeta sprint0/ con fotos numeradas
 - [ ] Paso 5-6 — Extraer las 10 facturas y anotar resultados
 - [ ] Paso 7 — Calcular % de extracción (gate: ≥85%)

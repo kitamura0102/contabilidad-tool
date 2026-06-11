@@ -93,7 +93,7 @@ El contador no sube directamente desde WhatsApp (no hay bot). El flujo es:
 
 ### OCR Provider
 
-**Decisión**: Google Gemini API (`gemini-2.0-flash`) con visión. Razones:
+**Decisión**: Google Gemini API (`Gemini Flash (versión vigente — hoy 3.5 Flash; fijar el model id exacto en Sprint 1)`) con visión. Razones:
 - Comprensión sólida de contexto en español, tier gratuito generoso para MVP
 - Puede recibir instrucciones específicas sobre formatos RNC/NCF
 - Tier gratuito: 15 RPM y 1M tokens/día — suficiente para el MVP sin costo
@@ -295,7 +295,7 @@ Español dominicano. Términos locales: "factura" (no "comprobante" en la UI), "
 | Frontend | React + TypeScript + Vite (SPA) | El handoff de diseño ya lo recomienda; herramienta densa tipo dashboard |
 | Backend | Supabase: Postgres + Auth + Storage + RLS + Edge Functions + pg_cron | 4 de 5 piezas resueltas, free tier, RLS nativo para multi-tenancy |
 | Hosting | Vercel (frontend) | Free tier, deploy automático |
-| IA/OCR | Gemini `gemini-2.0-flash` — SOLO vía Edge Function | Key como secreto del servidor, nunca en el browser (D2) |
+| IA/OCR | Gemini `Gemini Flash (versión vigente — hoy 3.5 Flash; fijar el model id exacto en Sprint 1)` — SOLO vía Edge Function | Key como secreto del servidor, nunca en el browser (D2) |
 | CI/CD | GitHub Actions | Deploy + backup nocturno |
 
 Costo total: **$0/mes** hasta tener clientes pagando.
