@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ nombre_empresa: '', rnc: '', sector: '' })
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadClientes()
@@ -39,12 +40,17 @@ export default function Dashboard() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
+    setError(null)
     const token = await getToken()
     if (!token) return
-    await createCliente(token, form)
-    setForm({ nombre_empresa: '', rnc: '', sector: '' })
-    setShowForm(false)
-    loadClientes()
+    try {
+      await createCliente(token, form)
+      setForm({ nombre_empresa: '', rnc: '', sector: '' })
+      setShowForm(false)
+      loadClientes()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
   }
 
   return (
@@ -83,9 +89,14 @@ export default function Dashboard() {
               onChange={e => setForm(f => ({ ...f, sector: e.target.value }))}
               style={inputStyle}
             />
+                {error && (
+              <div style={{ color: '#dc2626', fontSize: 13, background: '#fee2e2', padding: '8px 12px', borderRadius: 6 }}>
+                {error}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="submit" style={btnStyle}>Guardar</button>
-              <button type="button" onClick={() => setShowForm(false)} style={btnSecondaryStyle}>Cancelar</button>
+              <button type="button" onClick={() => { setShowForm(false); setError(null) }} style={btnSecondaryStyle}>Cancelar</button>
             </div>
           </div>
         </form>
