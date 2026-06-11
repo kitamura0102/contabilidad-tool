@@ -26,52 +26,6 @@ function ReportPreview({ client, tipo, onClose, onExport }) {
   }
   const header606 = `${cli.rnc}|${PERIODO.codigo}|${rows.length}`;
 
-  // Export Excel (.xlsx) — formato legible para revisión/respaldo del contador.
-  // NOTA: el archivo oficial para la DGII sigue siendo el .txt pipe-delimited;
-  // este Excel es una conveniencia, no reemplaza el envío a la Oficina Virtual.
-  function exportarExcel() {
-    if (typeof XLSX === 'undefined') {
-      alert('No se pudo cargar el generador de Excel. Verifica tu conexión.');
-      return;
-    }
-    const headers = is606
-      ? ['#', 'RNC/Cédula', 'Tipo ID', 'Tipo B/S', 'NCF', 'Fecha', 'Monto facturado', 'ITBIS facturado', 'Ret. ISR', 'Estado']
-      : ['#', 'RNC/Cédula', 'Tipo ID', 'NCF', 'Fecha', 'Monto facturado', 'ITBIS facturado', 'Estado'];
-
-    const data = rows.map((r, i) => {
-      const tipoId = r.rnc.replace(/\D/g, '').length === 11 ? '2' : '1';
-      const fecha = r.fecha.replace(/-/g, '');
-      if (is606) {
-        return [i + 1, r.rnc, tipoId, r.tipoBS, r.ncf, fecha,
-          Number(r.monto), Number(r.itbis), Number(r.retIsr || 0), r.estado];
-      }
-      return [i + 1, r.rnc, tipoId, r.ncf, fecha,
-        Number(r.monto), Number(r.itbis), r.estado];
-    });
-
-    // Fila de totales
-    const totalRow = is606
-      ? ['', 'TOTALES', '', '', '', '', totMonto, totItbis, totRet, '']
-      : ['', 'TOTALES', '', '', '', totMonto, totItbis, ''];
-
-    const aoa = [headers, ...data, totalRow];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-    // Formato de moneda en columnas de monto
-    const montoCols = is606 ? [6, 7, 8] : [5, 6];
-    for (let R = 1; R <= data.length + 1; R++) {
-      montoCols.forEach((C) => {
-        const ref = XLSX.utils.encode_cell({ r: R, c: C });
-        if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '#,##0.00';
-      });
-    }
-    ws['!cols'] = headers.map((h) => ({ wch: Math.max(10, h.length + 2) }));
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `${tipo} ${PERIODO.codigo}`);
-    XLSX.writeFile(wb, `DGII_${tipo}_${cli.rnc}_${PERIODO.codigo}.xlsx`);
-  }
-
   return (
     <div className="flow">
       <div className="flow-head">
@@ -85,10 +39,6 @@ function ReportPreview({ client, tipo, onClose, onExport }) {
           : <span className="badge badge-green"><Icon name="checkCircle" size={11}/>Sin errores</span>}
         <div style={{ width: 12 }}></div>
         <button className="btn btn-secondary"><Icon name="copy" size={14}/>Copiar</button>
-        <button className="btn btn-secondary" disabled={!puedeExportar} onClick={exportarExcel}
-          title={!puedeExportar ? 'Resuelve los errores antes de exportar' : 'Descarga una hoja Excel para revisión/respaldo'}>
-          <Icon name="download" size={15}/>Exportar Excel
-        </button>
         <button className="btn btn-primary" disabled={!puedeExportar} onClick={onExport}
           title={!puedeExportar ? 'Resuelve los errores antes de exportar' : ''}>
           <Icon name="download" size={15}/>Exportar .txt
