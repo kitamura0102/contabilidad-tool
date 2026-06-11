@@ -80,10 +80,10 @@ export default function Cliente() {
     }
   }
 
-  async function handleDownload(tipo: '606' | '607') {
+  async function handleDownload(tipo: '606' | '607', formato: 'txt' | 'xlsx' = 'txt') {
     const token = await getToken()
     if (!token || !id) return
-    await downloadReporte(token, id, tipo, periodo)
+    await downloadReporte(token, id, tipo, periodo, formato)
   }
 
   const formatMonto = (cents: number | null) => {
@@ -133,8 +133,19 @@ export default function Cliente() {
             onChange={e => setPeriodo(e.target.value.replace('-', ''))}
             style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
           />
-          <button onClick={() => handleDownload(tab === 'compra' ? '606' : '607')} style={btnSecStyle}>
-            Exportar {tab === 'compra' ? '606' : '607'}
+          <button
+            onClick={() => handleDownload(tab === 'compra' ? '606' : '607')}
+            style={btnSecStyle}
+            title="Archivo oficial para subir a la Oficina Virtual de la DGII"
+          >
+            Exportar {tab === 'compra' ? '606' : '607'} (.txt)
+          </button>
+          <button
+            onClick={() => handleDownload(tab === 'compra' ? '606' : '607', 'xlsx')}
+            style={btnSecStyle}
+            title="Hoja Excel para revisión o respaldo (no reemplaza el .txt de la DGII)"
+          >
+            Excel
           </button>
           <label style={{ ...btnStyle, display: 'inline-block' }}>
             {uploading ? 'Subiendo...' : '+ Factura'}

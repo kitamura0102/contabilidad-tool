@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { getDb, fromCents } from '../lib/db'
+import { buildXlsx, type Cell } from '../lib/xlsx'
 import { requireAuth } from '../middleware/auth'
 import type { Env, Variables } from '../types'
 
@@ -19,12 +20,14 @@ type FacturaRow = {
   tipo: string
 }
 
-// GET /api/reportes/:clienteId/:tipo/:periodo
+// GET /api/reportes/:clienteId/:tipo/:periodo[?formato=txt|xlsx]
 // tipo: 606 | 607   periodo: YYYYMM
-// Devuelve el TXT pipe-delimitado como texto plano
+// formato=txt (por defecto): archivo oficial pipe-delimitado para la DGII
+// formato=xlsx: hoja Excel legible para revisión/respaldo del contador
 reportes.get('/:clienteId/:tipo/:periodo', async (c) => {
   const userId = c.get('userId')
   const { clienteId, tipo, periodo } = c.req.param()
+  const formato = c.req.query('formato') === 'xlsx' ? 'xlsx' : 'txt'
 
   if (!['606', '607'].includes(tipo)) {
     return c.json({ error: 'Tipo debe ser 606 o 607' }, 400)
@@ -55,6 +58,16 @@ reportes.get('/:clienteId/:tipo/:periodo', async (c) => {
 
   const facturas = (rows as unknown[][])[1] as FacturaRow[]
 
+  if (formato === 'xlsx') {
+    const xlsx = tipo === '606' ? excel606(facturas) : excel607(facturas)
+    return new Response(xlsx, {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${tipo}_${periodo}.xlsx"`,
+      },
+    })
+  }
+
   const txt = tipo === '606'
     ? build606(facturas)
     : build607(facturas)
@@ -66,6 +79,47 @@ reportes.get('/:clienteId/:tipo/:periodo', async (c) => {
     },
   })
 })
+
+// Monto en pesos (número) para celdas Excel. null → 0.
+function montoPesos(cents: number | null): number {
+  return cents === null ? 0 : Number(cents) / 100
+}
+
+// 606 — versión Excel legible (encabezados + fila de totales)
+function excel606(rows: FacturaRow[]): Uint8Array {
+  const headers = ['#', 'RNC Proveedor', 'NCF', 'Tipo B/S', 'Fecha', 'Monto facturado', 'ITBIS facturado', 'Forma pago']
+  const body: Cell[][] = rows.map((f, i) => [
+    i + 1,
+    f.rnc_emisor ?? '',
+    f.ncf ?? '',
+    f.tipo_bs ?? '',
+    formatFecha(f.fecha_emision),
+    montoPesos(f.monto_total_cent),
+    montoPesos(f.monto_itbis_cent),
+    f.forma_pago ?? '',
+  ])
+  const totMonto = rows.reduce((s, f) => s + montoPesos(f.monto_total_cent), 0)
+  const totItbis = rows.reduce((s, f) => s + montoPesos(f.monto_itbis_cent), 0)
+  const total: Cell[] = ['', 'TOTALES', '', '', '', totMonto, totItbis, '']
+  return buildXlsx('606', [headers, ...body, total])
+}
+
+// 607 — versión Excel legible (encabezados + fila de totales)
+function excel607(rows: FacturaRow[]): Uint8Array {
+  const headers = ['#', 'RNC Comprador', 'NCF', 'Fecha', 'Monto facturado', 'ITBIS facturado']
+  const body: Cell[][] = rows.map((f, i) => [
+    i + 1,
+    f.rnc_emisor ?? '',
+    f.ncf ?? '',
+    formatFecha(f.fecha_emision),
+    montoPesos(f.monto_total_cent),
+    montoPesos(f.monto_itbis_cent),
+  ])
+  const totMonto = rows.reduce((s, f) => s + montoPesos(f.monto_total_cent), 0)
+  const totItbis = rows.reduce((s, f) => s + montoPesos(f.monto_itbis_cent), 0)
+  const total: Cell[] = ['', 'TOTALES', '', '', totMonto, totItbis]
+  return buildXlsx('607', [headers, ...body, total])
+}
 
 function formatFecha(iso: string | null): string {
   if (!iso) return ''

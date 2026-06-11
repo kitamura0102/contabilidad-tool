@@ -88,14 +88,22 @@ export function getImageUrl(token: string, facturaId: string) {
 
 // ─── Reportes ────────────────────────────────────────────────────────────────
 
-export async function downloadReporte(token: string, clienteId: string, tipo: '606' | '607', periodo: string) {
-  const r = await authFetch(token, `/api/reportes/${clienteId}/${tipo}/${periodo}`)
+// formato 'txt' (oficial DGII) o 'xlsx' (revisión/respaldo del contador)
+export async function downloadReporte(
+  token: string,
+  clienteId: string,
+  tipo: '606' | '607',
+  periodo: string,
+  formato: 'txt' | 'xlsx' = 'txt',
+) {
+  const qs = formato === 'xlsx' ? '?formato=xlsx' : ''
+  const r = await authFetch(token, `/api/reportes/${clienteId}/${tipo}/${periodo}${qs}`)
   if (!r.ok) throw new Error(await r.text())
   const blob = await r.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${tipo}_${periodo}.txt`
+  a.download = `${tipo}_${periodo}.${formato}`
   a.click()
   URL.revokeObjectURL(url)
 }
