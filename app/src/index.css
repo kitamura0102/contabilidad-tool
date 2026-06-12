@@ -521,6 +521,66 @@ details[open] summary svg { transform: rotate(90deg); }
 summary svg { transition: transform .15s ease; }
 
 /* ============================================================
+ * RESPONSIVE — tablet / mobile (≤ 900px)
+ * Sidebar becomes an off-canvas drawer; corrector stacks; padding tightens.
+ * ============================================================ */
+.mobile-topbar { display: none; }
+.nav-backdrop { display: none; }
+
+@media (max-width: 900px) {
+  .mobile-topbar {
+    display: flex; align-items: center; gap: 12px;
+    height: 52px; min-height: 52px; padding: 0 14px;
+    background: var(--bg-nav); border-bottom: 1px solid var(--border-nav);
+    position: sticky; top: 0; z-index: 30;
+  }
+  .mobile-topbar .brand-name { font-size: 16px; }
+  .mobile-menu-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: var(--r-sm);
+    border: none; background: transparent; color: var(--text-on-dark);
+  }
+  .mobile-menu-btn:hover { background: var(--bg-nav-hover); }
+
+  #app { flex-direction: column; }
+  .main { width: 100%; }
+
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 60;
+    transform: translateX(-100%);
+    transition: transform .24s cubic-bezier(.2,.8,.2,1);
+  }
+  .sidebar.open { transform: translateX(0); box-shadow: var(--sh-lg); }
+  .nav-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 55;
+    background: rgba(14,19,25,0.5); animation: cf-fade .15s ease;
+  }
+
+  .topbar { min-height: 60px; padding: 10px 16px; flex-wrap: wrap; gap: 10px; }
+  .content { padding: 18px 16px 40px; }
+
+  /* Corrector: stack image over fields */
+  .flow-body { flex-direction: column; }
+  .flow-body > div { flex: none !important; }
+  .flow-body > div:first-child { min-height: 38vh; max-height: 44vh; border-left: none; }
+  .flow-body > div:last-child { border-left: none !important; border-top: 1px solid var(--border); }
+  .flow-head { flex-wrap: wrap; min-height: 56px; padding: 8px 14px; gap: 8px; }
+
+  /* Settings rows stack */
+  .set-row { flex-direction: column; gap: 10px; }
+  .set-row-label { width: auto; min-width: 0; }
+
+  /* Bulk bar fits small screens */
+  .bulk-bar { left: 12px; right: 12px; transform: none; bottom: 16px; justify-content: center; flex-wrap: wrap; border-radius: var(--r-md); }
+}
+
+@media (max-width: 560px) {
+  .metric-card { max-width: none; }
+  .bulk-btn span, .bulk-btn { font-size: 11px; }
+  .topbar .btn { height: 32px; padding: 0 10px; }
+}
+
+/* ============================================================
  * REDUCED MOTION
  * Drop movement/transform-based motion; keep opacity crossfades
  * so state changes (loading, enter/exit) remain perceivable.

@@ -11,12 +11,14 @@ const NAV = [
   { id: 'reportes',  label: 'Reportes',       icon: FileText, path: '/app/reportes' },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ className = '', onNavigate }: { className?: string; onNavigate?: () => void }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { user } = useUser()
   const { getToken } = useAuth()
   const [pendientes, setPendientes] = useState(0)
+
+  const go = (path: string) => { navigate(path); onNavigate?.() }
 
   // Live-ish count of facturas needing attention, refreshed on navigation. Fails silent.
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${className}`}>
       <div className="brand">
         <div className="brand-mark"><Zap size={17} strokeWidth={2} /></div>
         <span className="brand-name">Cifra</span>
@@ -53,7 +55,7 @@ export default function Sidebar() {
           <button
             key={n.id}
             className={`nav-item${isActive(n.path) ? ' active' : ''}`}
-            onClick={() => navigate(n.path)}
+            onClick={() => go(n.path)}
           >
             <n.icon size={17} />
             <span>{n.label}</span>
@@ -66,13 +68,13 @@ export default function Sidebar() {
         <div className="nav-section-label">Cuenta</div>
         <button
           className={`nav-item${pathname === '/app/settings' ? ' active' : ''}`}
-          onClick={() => navigate('/app/settings')}
+          onClick={() => go('/app/settings')}
         >
           <Settings size={17} /><span>Configuración</span>
         </button>
         <button
           className={`nav-item${pathname === '/app/ayuda' ? ' active' : ''}`}
-          onClick={() => navigate('/app/ayuda')}
+          onClick={() => go('/app/ayuda')}
         >
           <HelpCircle size={17} /><span>Ayuda</span>
         </button>
@@ -81,7 +83,7 @@ export default function Sidebar() {
       <div className="spacer" />
 
       {user && (
-        <button className="nav-profile" onClick={() => navigate('/app/settings')}>
+        <button className="nav-profile" onClick={() => go('/app/settings')}>
           <Avatar name={user.fullName ?? user.primaryEmailAddress?.emailAddress ?? 'U'} size={32} tone="blue" />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="np-name">{user.fullName ?? user.primaryEmailAddress?.emailAddress}</div>
