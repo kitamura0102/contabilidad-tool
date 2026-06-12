@@ -46,6 +46,7 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState<'reintentar' | 'delete' | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const resolved = useRef(0)
 
   const current = queue[idx]
@@ -61,6 +62,7 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
     setImagenLoading(true)
     setEditFields(initEdit(current))
     setConfirmDelete(false)
+    setActionError(null)
     ;(async () => {
       const token = await getToken()
       if (!token) { setImagenLoading(false); return }
@@ -110,13 +112,14 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
 
   async function handleSave(next: boolean) {
     setSaving(true)
+    setActionError(null)
     try {
       if (!(await persist())) return
       onChanged()
       if (next) advanceOrFinish()
       else onClose()
     } catch (err) {
-      alert(`Error al guardar: ${err instanceof Error ? err.message : String(err)}`)
+      setActionError(`No se pudo guardar: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setSaving(false)
     }
@@ -124,6 +127,7 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
 
   async function handleReintentar() {
     setBusy('reintentar')
+    setActionError(null)
     try {
       const token = await getToken()
       if (!token) return
@@ -132,7 +136,7 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
       onChanged()
       advanceOrFinish()
     } catch (err) {
-      alert(`Error: ${err instanceof Error ? err.message : String(err)}`)
+      setActionError(`No se pudo reintentar: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setBusy(null)
     }
@@ -140,6 +144,7 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
 
   async function handleDelete() {
     setBusy('delete')
+    setActionError(null)
     try {
       const token = await getToken()
       if (!token) return
@@ -148,10 +153,10 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
       // Drop the deleted item from the local queue view by advancing.
       advanceOrFinish()
     } catch (err) {
-      alert(`Error al borrar: ${err instanceof Error ? err.message : String(err)}`)
+      setActionError(`No se pudo borrar: ${err instanceof Error ? err.message : String(err)}`)
+      setConfirmDelete(false)
     } finally {
       setBusy(null)
-      setConfirmDelete(false)
     }
   }
 
@@ -251,6 +256,12 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
         {/* Fields */}
         <div style={{ flex: '1 1 45%', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)', overflow: 'auto' }}>
           <div style={{ padding: '24px 28px', maxWidth: 480 }}>
+            {actionError && (
+              <div className="row gap-3" style={{ marginBottom: 18, padding: '10px 13px', background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 8 }}>
+                <X size={16} style={{ color: 'var(--red-600)', flexShrink: 0 }} />
+                <div className="t-sm" style={{ color: 'var(--red-700)' }}>{actionError}</div>
+              </div>
+            )}
             {current.estado === 'pendiente_revision' && (
               <div className="row gap-3" style={{ marginBottom: 18, padding: '10px 13px', background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 8 }}>
                 <AlertTriangle size={16} style={{ color: 'var(--amber-600)', flexShrink: 0 }} />

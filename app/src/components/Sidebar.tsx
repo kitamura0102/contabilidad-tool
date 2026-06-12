@@ -70,7 +70,10 @@ export default function Sidebar() {
         >
           <Settings size={17} /><span>Configuración</span>
         </button>
-        <button className="nav-item">
+        <button
+          className={`nav-item${pathname === '/app/ayuda' ? ' active' : ''}`}
+          onClick={() => navigate('/app/ayuda')}
+        >
           <HelpCircle size={17} /><span>Ayuda</span>
         </button>
       </div>

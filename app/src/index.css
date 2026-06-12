@@ -515,6 +515,10 @@ input[type="month"].period-input:focus { outline: none; border-color: var(--acce
 
 /* ---- Misc ---- */
 .divider { height: 1px; background: var(--border); border: none; }
+summary::-webkit-details-marker { display: none; }
+summary { list-style: none; }
+details[open] summary svg { transform: rotate(90deg); }
+summary svg { transition: transform .15s ease; }
 
 /* ============================================================
  * REDUCED MOTION
