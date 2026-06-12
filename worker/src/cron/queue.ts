@@ -88,16 +88,28 @@ async function processOne(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('processOne fallo:', factura.id, msg)
-    const nuevoEstado = factura.intentos + 1 >= MAX_RETRIES
-      ? 'error_extraccion'
-      : 'en_cola'
 
-    await sql`
-      UPDATE facturas SET
-        estado       = ${nuevoEstado},
-        intentos     = intentos + 1,
-        ultimo_error = ${msg}
-      WHERE id = ${factura.id}
-    `
+    const isTransient = /429|RESOURCE_EXHAUSTED|quota|503|overloaded|unavailable|rate.?limit/i.test(msg)
+
+    if (isTransient) {
+      // Error transitorio: vuelve a la cola sin quemar un intento
+      await sql`
+        UPDATE facturas SET
+          estado       = 'en_cola',
+          ultimo_error = ${msg}
+        WHERE id = ${factura.id}
+      `
+    } else {
+      const nuevoEstado = factura.intentos + 1 >= MAX_RETRIES
+        ? 'error_extraccion'
+        : 'en_cola'
+      await sql`
+        UPDATE facturas SET
+          estado       = ${nuevoEstado},
+          intentos     = intentos + 1,
+          ultimo_error = ${msg}
+        WHERE id = ${factura.id}
+      `
+    }
   }
 }

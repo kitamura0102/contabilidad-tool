@@ -82,8 +82,17 @@ export async function patchFactura(token: string, id: string, data: Record<strin
   return r.json()
 }
 
-export function getImageUrl(token: string, facturaId: string) {
-  return `${WORKER_URL}/api/facturas/${facturaId}/imagen?token=${token}`
+export async function fetchFacturaImagen(token: string, id: string): Promise<{ url: string; isPdf: boolean }> {
+  const r = await authFetch(token, `/api/facturas/${id}/imagen`)
+  if (!r.ok) throw new Error(await r.text())
+  const isPdf = (r.headers.get('content-type') ?? '').includes('pdf')
+  const blob = await r.blob()
+  return { url: URL.createObjectURL(blob), isPdf }
+}
+
+export async function reintentarFactura(token: string, id: string): Promise<void> {
+  const r = await authFetch(token, `/api/facturas/${id}/reintentar`, { method: 'POST' })
+  if (!r.ok) throw new Error(await r.text())
 }
 
 // ─── Reportes ────────────────────────────────────────────────────────────────

@@ -15,7 +15,7 @@ binding = "R2"
 bucket_name = "cifra-facturas"
 
 [triggers]
-crons = ["* * * * *"]
+crons = ["*/5 * * * *"]
 
 # Secrets — set via: wrangler secret put <NAME>
 # DATABASE_URL

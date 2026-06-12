@@ -122,6 +122,29 @@ facturas.patch('/:id', zValidator('json', correctSchema), async (c) => {
   return c.json(((rows as unknown[][])[1] as unknown[])[0])
 })
 
+// POST /api/facturas/:id/reintentar — resetea factura error_extraccion para reencolar
+facturas.post('/:id/reintentar', async (c) => {
+  const userId = c.get('userId')
+  const sql = getDb(c.env.DATABASE_URL)
+
+  const rows = await sql.transaction([
+    sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
+    sql`
+      UPDATE facturas SET
+        estado       = 'en_cola',
+        intentos     = 0,
+        ultimo_error = NULL
+      WHERE id = ${c.req.param('id')}
+        AND estado = 'error_extraccion'
+      RETURNING id
+    `,
+  ] as Parameters<typeof sql.transaction>[0])
+
+  const data = ((rows as unknown[][])[1] as unknown[])[0]
+  if (!data) return c.json({ error: 'No encontrada o no está en error' }, 404)
+  return c.json({ ok: true })
+})
+
 // GET /api/facturas/:id/imagen — sirve imagen desde R2 con auth check
 facturas.get('/:id/imagen', async (c) => {
   const userId = c.get('userId')
