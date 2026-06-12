@@ -204,7 +204,7 @@ input, select, textarea { font-family: inherit; }
 .tbl { width: 100%; border-collapse: collapse; }
 .tbl th {
   text-align: left; font-size: var(--fs-2xs); font-weight: 600;
-  letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint);
+  letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted);
   padding: 10px 14px; border-bottom: 1px solid var(--border);
   background: var(--slate-50); position: sticky; top: 0; z-index: 1;
   white-space: nowrap;
@@ -218,6 +218,7 @@ input, select, textarea { font-family: inherit; }
 .tbl tbody tr { transition: background .1s ease; }
 .tbl tbody tr:hover { background: var(--slate-50); }
 .tbl tbody tr.clickable { cursor: pointer; }
+.tbl tbody tr.clickable:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); background: var(--slate-50); }
 .tbl .num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .tbl tfoot td { height: 44px; font-weight: 600; color: var(--text-strong); background: var(--slate-50); border-top: 1px solid var(--border-strong); border-bottom: none; }
 
@@ -230,7 +231,7 @@ input, select, textarea { font-family: inherit; }
   border-radius: var(--r-sm); transition: border-color .12s, box-shadow .12s;
 }
 .input:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
-.input::placeholder { color: var(--text-faint); }
+.input::placeholder { color: var(--text-muted); }
 
 /* ---- Layout utils ---- */
 .row { display: flex; align-items: center; }
@@ -331,8 +332,18 @@ input, select, textarea { font-family: inherit; }
 }
 .tab.active .tab-count { background: var(--blue-50); color: var(--blue-700); }
 
-/* ---- Stat cards ---- */
-.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+/* ---- Metric cards (actionable filters) ---- */
+.metric-row { display: flex; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
+.metric-card {
+  flex: 1 1 0; min-width: 220px; max-width: 320px;
+  padding: 16px 18px; text-align: left;
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--sh-xs); cursor: pointer;
+  transition: border-color .13s ease, box-shadow .13s ease, background .13s ease;
+}
+.metric-card:hover { border-color: var(--border-strong); box-shadow: var(--sh-sm); }
+.metric-card:focus-visible { outline: none; box-shadow: var(--ring); }
+.metric-card.active { border-color: var(--accent); box-shadow: var(--ring); background: var(--blue-50); }
 .stat-card { padding: 16px 18px; }
 .stat-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .stat-ico { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -345,10 +356,11 @@ input, select, textarea { font-family: inherit; }
 .search-box {
   display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 11px;
   background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: var(--r-sm);
-  color: var(--text-faint); min-width: 240px; transition: border-color .12s, box-shadow .12s;
+  color: var(--text-muted); min-width: 240px; transition: border-color .12s, box-shadow .12s;
 }
 .search-box:focus-within { border-color: var(--accent); box-shadow: var(--ring); }
 .search-box input { border: none; outline: none; background: transparent; font-size: var(--fs-sm); color: var(--text-strong); width: 100%; }
+.search-box input::placeholder { color: var(--text-muted); }
 .search-box svg { flex-shrink: 0; }
 
 .chip {
@@ -463,3 +475,20 @@ input[type="month"].period-input:focus { outline: none; border-color: var(--acce
 
 /* ---- Misc ---- */
 .divider { height: 1px; background: var(--border); border: none; }
+
+/* ============================================================
+ * REDUCED MOTION
+ * Drop movement/transform-based motion; keep opacity crossfades
+ * so state changes (loading, enter/exit) remain perceivable.
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .spin { animation: cf-spin 0.8s linear infinite; }   /* spinner conveys ongoing work — keep it */
+  .ai-orb::after { animation: cf-spin 1s linear infinite; }
+  .overlay, .drawer, .flow, .modal { animation: cf-fade 0.01ms linear; }
+}

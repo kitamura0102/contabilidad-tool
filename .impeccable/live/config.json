@@ -1,0 +1,9 @@
+{
+  "files": ["app/index.html"],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "framework": "vite",
+  "devCommand": "npm run dev",
+  "devRoot": "app",
+  "cspChecked": true
+}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
-import { Users, Receipt, CheckCircle, AlertTriangle, Search, Plus, ChevronRight, X } from 'lucide-react'
+import { Users, CheckCircle, AlertTriangle, Search, Plus, ChevronRight, X } from 'lucide-react'
 import { getClientes, createCliente } from '../lib/api'
 import Topbar from '../components/Topbar'
 import Avatar from '../components/Avatar'
@@ -37,6 +37,7 @@ export default function Dashboard() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
+  const [filter, setFilter] = useState<'all' | 'revisar' | 'listos'>('all')
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ nombre_empresa: '', rnc: '', sector: '' })
   const [saving, setSaving] = useState(false)
@@ -74,13 +75,20 @@ export default function Dashboard() {
   }
 
   const activos = clientes.filter(c => c.activo).length
-  const totalFacturas = clientes.reduce((s, c) => s + c.facturas_pendientes + c.facturas_revision + c.facturas_listas, 0)
   const totalRevision = clientes.reduce((s, c) => s + c.facturas_revision, 0)
-  const listos = clientes.filter(c => c.facturas_listas > 0 && c.facturas_pendientes === 0 && c.facturas_revision === 0).length
+  const isListo = (c: Cliente) => c.facturas_listas > 0 && c.facturas_pendientes === 0 && c.facturas_revision === 0
+  const listos = clientes.filter(isListo).length
+
+  const matchesFilter = (c: Cliente) =>
+    filter === 'revisar' ? c.facturas_revision > 0 :
+    filter === 'listos'  ? isListo(c) :
+    true
 
   const filtered = clientes.filter(c =>
-    c.nombre_empresa.toLowerCase().includes(q.toLowerCase()) ||
-    c.rnc.includes(q.replace(/\D/g, ''))
+    matchesFilter(c) && (
+      c.nombre_empresa.toLowerCase().includes(q.toLowerCase()) ||
+      c.rnc.includes(q.replace(/\D/g, ''))
+    )
   )
 
   return (
@@ -96,12 +104,20 @@ export default function Dashboard() {
       />
 
       <div className="content">
-        {/* Stat cards */}
-        <div className="stat-grid">
-          <StatCard icon={<Users size={17} />} tone="blue" label="Clientes activos" value={activos} />
-          <StatCard icon={<Receipt size={17} />} tone="slate" label="Facturas totales" value={totalFacturas} />
-          <StatCard icon={<CheckCircle size={17} />} tone="green" label="Listos para exportar" value={listos} sub={`de ${activos} clientes`} />
-          <StatCard icon={<AlertTriangle size={17} />} tone="amber" label="Por revisar" value={totalRevision} sub="facturas con incidencias" />
+        {/* Actionable metric filters */}
+        <div className="metric-row">
+          <MetricCard
+            icon={<AlertTriangle size={17} />} tone="amber"
+            label="Por revisar" value={totalRevision} sub="facturas con incidencias"
+            active={filter === 'revisar'}
+            onClick={() => setFilter(f => f === 'revisar' ? 'all' : 'revisar')}
+          />
+          <MetricCard
+            icon={<CheckCircle size={17} />} tone="green"
+            label="Listos para exportar" value={listos} sub={`de ${activos} clientes`}
+            active={filter === 'listos'}
+            onClick={() => setFilter(f => f === 'listos' ? 'all' : 'listos')}
+          />
         </div>
 
         {/* Toolbar */}
@@ -114,6 +130,12 @@ export default function Dashboard() {
               onChange={e => setQ(e.target.value)}
             />
           </div>
+          {filter !== 'all' && (
+            <button className="chip" onClick={() => setFilter('all')} title="Quitar filtro">
+              {filter === 'revisar' ? 'Por revisar' : 'Listos'}
+              <X size={13} />
+            </button>
+          )}
           <div className="spacer" />
           <span className="t-sm t-muted">{filtered.length} cliente{filtered.length !== 1 ? 's' : ''}</span>
         </div>
@@ -157,7 +179,17 @@ export default function Dashboard() {
                     const est = clienteEstado(c)
                     const tone = SECTOR_TONE[c.sector ?? ''] ?? 'slate'
                     return (
-                      <tr key={c.id} className="clickable" onClick={() => navigate(`/app/clientes/${c.id}`)}>
+                      <tr
+                        key={c.id}
+                        className="clickable"
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Abrir cliente ${c.nombre_empresa}`}
+                        onClick={() => navigate(`/app/clientes/${c.id}`)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/app/clientes/${c.id}`) }
+                        }}
+                      >
                         <td>
                           <div className="cell-name">
                             <Avatar name={c.nombre_empresa} size={30} tone={tone} />
@@ -181,7 +213,13 @@ export default function Dashboard() {
               </table>
             </div>
             {filtered.length === 0 && (
-              <div className="t-sm t-muted" style={{ textAlign: 'center', padding: 28 }}>Sin resultados para "{q}".</div>
+              <div className="t-sm t-muted" style={{ textAlign: 'center', padding: 28 }}>
+                {q
+                  ? `Sin resultados para "${q}".`
+                  : filter === 'revisar' ? 'Ningún cliente tiene facturas por revisar.'
+                  : filter === 'listos'  ? 'Ningún cliente está listo para exportar todavía.'
+                  : 'Sin resultados.'}
+              </div>
             )}
           </div>
         )}
@@ -247,25 +285,30 @@ export default function Dashboard() {
   )
 }
 
-function StatCard({ icon, tone, label, value, sub }: {
-  icon: React.ReactNode; tone: 'blue' | 'green' | 'amber' | 'slate'
+function MetricCard({ icon, tone, label, value, sub, active, onClick }: {
+  icon: React.ReactNode; tone: 'green' | 'amber'
   label: string; value: number | string; sub?: string
+  active: boolean; onClick: () => void
 }) {
   const tones: Record<string, [string, string]> = {
-    blue:  ['var(--blue-50)',  'var(--accent)'],
     green: ['var(--green-50)', 'var(--green-600)'],
     amber: ['var(--amber-50)', 'var(--amber-600)'],
-    slate: ['var(--slate-100)','var(--slate-500)'],
   }
   const [bg, fg] = tones[tone]
   return (
-    <div className="card stat-card">
+    <button
+      type="button"
+      className={`card metric-card${active ? ' active' : ''}`}
+      onClick={onClick}
+      aria-pressed={active}
+      title={active ? 'Quitar filtro' : `Filtrar: ${label}`}
+    >
       <div className="stat-top">
         <span className="stat-label">{label}</span>
         <span className="stat-ico" style={{ background: bg, color: fg }}>{icon}</span>
       </div>
       <div className="stat-value">{value}</div>
       {sub && <div className="stat-sub">{sub}</div>}
-    </div>
+    </button>
   )
 }

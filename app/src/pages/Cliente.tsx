@@ -363,7 +363,18 @@ export default function Cliente() {
                     </td>
                   </tr>
                 ) : filtered.map(f => (
-                  <tr key={f.id} className="clickable" onClick={() => openPanel(f)}>
+                  <tr
+                    key={f.id}
+                    className="clickable"
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Revisar factura ${f.ncf ?? f.rnc_emisor ?? f.id}`}
+                    onClick={() => openPanel(f)}
+                    onKeyDown={e => {
+                      if (e.target !== e.currentTarget) return   // ignore keys from nested buttons (Reintentar)
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPanel(f) }
+                    }}
+                  >
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <FacturaBadge estado={f.estado} />
@@ -447,16 +458,13 @@ export default function Cliente() {
                 <CheckCircle size={15} />{saving ? 'Guardando…' : 'Guardar cambios'}
               </button>
             )}
-            <button className="btn btn-ghost btn-icon" onClick={closePanel} style={{ marginLeft: 4 }}>
-              <X size={18} />
-            </button>
           </div>
 
           {/* Flow body: 50/50 */}
           <div className="flow-body">
             {/* Left: image */}
             <div style={{
-              flex: '1 1 55%', background: '#1A1F27',
+              flex: '1 1 55%', background: 'var(--slate-900)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               overflow: 'auto', padding: 28,
             }}>
