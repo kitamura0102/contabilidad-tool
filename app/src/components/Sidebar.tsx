@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useAuth, useUser } from '@clerk/clerk-react'
 import { Users, Inbox, FileText, Settings, HelpCircle, Zap, ChevronRight } from 'lucide-react'
+import { getFacturas } from '../lib/api'
 import Avatar from './Avatar'
 
 const NAV = [
@@ -13,6 +15,25 @@ export default function Sidebar() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { user } = useUser()
+  const { getToken } = useAuth()
+  const [pendientes, setPendientes] = useState(0)
+
+  // Live-ish count of facturas needing attention, refreshed on navigation. Fails silent.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const token = await getToken()
+        if (!token) return
+        const [rev, err] = await Promise.all([
+          getFacturas(token, { estado: 'pendiente_revision' }),
+          getFacturas(token, { estado: 'error_extraccion' }),
+        ])
+        if (!cancelled) setPendientes((rev?.length ?? 0) + (err?.length ?? 0))
+      } catch { /* sin badge */ }
+    })()
+    return () => { cancelled = true }
+  }, [pathname, getToken])
 
   const isActive = (path: string) => {
     if (path === '/app') return pathname === '/app' || pathname.startsWith('/app/clientes')
@@ -36,6 +57,7 @@ export default function Sidebar() {
           >
             <n.icon size={17} />
             <span>{n.label}</span>
+            {n.id === 'bandeja' && pendientes > 0 && <span className="nav-badge">{pendientes}</span>}
           </button>
         ))}
       </div>

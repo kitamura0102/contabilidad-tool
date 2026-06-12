@@ -109,6 +109,7 @@ export default function Dashboard() {
             icon={<AlertTriangle size={17} />} tone="amber"
             label="Por revisar" value={totalRevision} sub="ir a la Bandeja →"
             active={false}
+            title="Ir a la Bandeja"
             onClick={() => navigate('/app/bandeja?filtro=revisar')}
           />
           <MetricCard
@@ -283,10 +284,10 @@ export default function Dashboard() {
   )
 }
 
-function MetricCard({ icon, tone, label, value, sub, active, onClick }: {
+function MetricCard({ icon, tone, label, value, sub, active, onClick, title }: {
   icon: React.ReactNode; tone: 'green' | 'amber'
   label: string; value: number | string; sub?: string
-  active: boolean; onClick: () => void
+  active: boolean; onClick: () => void; title?: string
 }) {
   const tones: Record<string, [string, string]> = {
     green: ['var(--green-50)', 'var(--green-600)'],
@@ -299,7 +300,7 @@ function MetricCard({ icon, tone, label, value, sub, active, onClick }: {
       className={`card metric-card${active ? ' active' : ''}`}
       onClick={onClick}
       aria-pressed={active}
-      title={active ? 'Quitar filtro' : `Filtrar: ${label}`}
+      title={title ?? (active ? 'Quitar filtro' : `Filtrar: ${label}`)}
     >
       <div className="stat-top">
         <span className="stat-label">{label}</span>
