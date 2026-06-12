@@ -38,7 +38,7 @@ export default function Dashboard() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
-  const [filter, setFilter] = useState<'all' | 'revisar' | 'listos'>('all')
+  const [filter, setFilter] = useState<'all' | 'listos'>('all')
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ nombre_empresa: '', rnc: '', sector: '' })
   const [saving, setSaving] = useState(false)
@@ -81,9 +81,7 @@ export default function Dashboard() {
   const listos = clientes.filter(isListo).length
 
   const matchesFilter = (c: Cliente) =>
-    filter === 'revisar' ? c.facturas_revision > 0 :
-    filter === 'listos'  ? isListo(c) :
-    true
+    filter === 'listos' ? isListo(c) : true
 
   const filtered = clientes.filter(c =>
     matchesFilter(c) && (
@@ -109,9 +107,9 @@ export default function Dashboard() {
         <div className="metric-row">
           <MetricCard
             icon={<AlertTriangle size={17} />} tone="amber"
-            label="Por revisar" value={totalRevision} sub="facturas con incidencias"
-            active={filter === 'revisar'}
-            onClick={() => setFilter(f => f === 'revisar' ? 'all' : 'revisar')}
+            label="Por revisar" value={totalRevision} sub="ir a la Bandeja →"
+            active={false}
+            onClick={() => navigate('/app/bandeja?filtro=revisar')}
           />
           <MetricCard
             icon={<CheckCircle size={17} />} tone="green"
@@ -131,9 +129,9 @@ export default function Dashboard() {
               onChange={e => setQ(e.target.value)}
             />
           </div>
-          {filter !== 'all' && (
+          {filter === 'listos' && (
             <button className="chip" onClick={() => setFilter('all')} title="Quitar filtro">
-              {filter === 'revisar' ? 'Por revisar' : 'Listos'}
+              Listos
               <X size={13} />
             </button>
           )}
@@ -217,8 +215,7 @@ export default function Dashboard() {
               <div className="t-sm t-muted" style={{ textAlign: 'center', padding: 28 }}>
                 {q
                   ? `Sin resultados para "${q}".`
-                  : filter === 'revisar' ? 'Ningún cliente tiene facturas por revisar.'
-                  : filter === 'listos'  ? 'Ningún cliente está listo para exportar todavía.'
+                  : filter === 'listos' ? 'Ningún cliente está listo para exportar todavía.'
                   : 'Sin resultados.'}
               </div>
             )}

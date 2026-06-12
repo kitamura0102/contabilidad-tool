@@ -145,6 +145,25 @@ facturas.post('/:id/reintentar', async (c) => {
   return c.json({ ok: true })
 })
 
+// DELETE /api/facturas/:id — borra factura (RLS) + objeto en R2
+facturas.delete('/:id', async (c) => {
+  const userId = c.get('userId')
+  const sql = getDb(c.env.DATABASE_URL)
+
+  const rows = await sql.transaction([
+    sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
+    sql`DELETE FROM facturas WHERE id = ${c.req.param('id')} RETURNING imagen_path`,
+  ] as Parameters<typeof sql.transaction>[0])
+
+  const row = (((rows as unknown[][])[1]) as Array<{ imagen_path: string | null }>)[0]
+  if (!row) return c.json({ error: 'No encontrada' }, 404)
+
+  if (row.imagen_path) {
+    try { await c.env.R2.delete(row.imagen_path) } catch { /* best-effort; la fila ya no existe */ }
+  }
+  return c.json({ ok: true })
+})
+
 // GET /api/facturas/:id/imagen — sirve imagen desde R2 con auth check
 facturas.get('/:id/imagen', async (c) => {
   const userId = c.get('userId')

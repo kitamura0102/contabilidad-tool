@@ -473,6 +473,35 @@ input[type="month"].period-input:focus { outline: none; border-color: var(--acce
 .meter { height: 7px; background: var(--slate-150); border-radius: 999px; overflow: hidden; }
 .meter > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
 
+/* ---- Bulk action bar ---- */
+.bulk-bar {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  z-index: 70; display: flex; align-items: center; gap: 8px;
+  background: var(--slate-900); color: var(--text-on-dark);
+  padding: 8px 10px 8px 16px; border-radius: var(--r-pill);
+  box-shadow: var(--sh-lg); animation: cf-rise .18s ease;
+}
+.bulk-count { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.bulk-sep { width: 1px; height: 22px; background: var(--border-nav); margin: 0 2px; }
+.bulk-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+  border-radius: var(--r-sm); border: none; background: rgba(255,255,255,0.08);
+  color: var(--text-on-dark); font-size: 12px; font-weight: 500; white-space: nowrap;
+  transition: background .12s ease, color .12s ease;
+}
+.bulk-btn:hover:not(:disabled) { background: rgba(255,255,255,0.16); }
+.bulk-btn:disabled { opacity: .4; cursor: not-allowed; }
+.bulk-btn.danger:hover:not(:disabled) { background: var(--red-600); color: #fff; }
+.bulk-btn.primary { background: var(--blue-500); color: #fff; }
+.bulk-btn.primary:hover:not(:disabled) { background: var(--blue-600); }
+.bulk-btn.ghost { background: transparent; color: var(--text-on-dark-muted); padding: 0 8px; }
+.bulk-btn.ghost:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: var(--text-on-dark); }
+
+/* row checkbox cell */
+.tbl td.check-cell, .tbl th.check-cell { width: 40px; padding-left: 14px; padding-right: 0; }
+.tbl tbody tr.selected { background: var(--blue-50); }
+.tbl tbody tr.selected:hover { background: var(--blue-50); }
+
 /* ---- Skeleton (loading) ---- */
 .skeleton {
   display: inline-block;

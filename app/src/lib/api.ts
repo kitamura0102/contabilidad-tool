@@ -95,6 +95,16 @@ export async function reintentarFactura(token: string, id: string): Promise<void
   if (!r.ok) throw new Error(await r.text())
 }
 
+export async function deleteFactura(token: string, id: string): Promise<void> {
+  const r = await authFetch(token, `/api/facturas/${id}`, { method: 'DELETE' })
+  if (!r.ok) throw new Error(await r.text())
+}
+
+// Marca una factura como procesada sin cambiar sus campos (PATCH vacío fija estado='procesada').
+export async function marcarRevisada(token: string, id: string): Promise<void> {
+  await patchFactura(token, id, {})
+}
+
 // ─── Reportes ────────────────────────────────────────────────────────────────
 
 // formato 'txt' (oficial DGII) o 'xlsx' (revisión/respaldo del contador)
