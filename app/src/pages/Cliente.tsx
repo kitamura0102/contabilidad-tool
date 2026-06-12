@@ -8,6 +8,7 @@ import {
 import { getCliente, getFacturas, uploadFactura, patchFactura, downloadReporte, fetchFacturaImagen, reintentarFactura } from '../lib/api'
 import Topbar from '../components/Topbar'
 import FacturaBadge from '../components/FacturaBadge'
+import TableSkeleton from '../components/TableSkeleton'
 
 type Factura = {
   id: string
@@ -65,6 +66,7 @@ export default function Cliente() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
   const [q, setQ] = useState('')
+  const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -106,6 +108,7 @@ export default function Cliente() {
       setFacturas(f)
     } finally {
       if (showSpinner) setRefreshing(false)
+      setLoading(false)
     }
   }
 
@@ -356,7 +359,9 @@ export default function Cliente() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {loading ? (
+                  <TableSkeleton rows={5} widths={[70, 70, 70, 55, 60, 60, 35, 16]} />
+                ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>
                       No hay facturas. Sube la primera con "Subir factura".

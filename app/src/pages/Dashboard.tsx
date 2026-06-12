@@ -5,6 +5,7 @@ import { Users, CheckCircle, AlertTriangle, Search, Plus, ChevronRight, X } from
 import { getClientes, createCliente } from '../lib/api'
 import Topbar from '../components/Topbar'
 import Avatar from '../components/Avatar'
+import TableSkeleton from '../components/TableSkeleton'
 
 type Cliente = {
   id: string
@@ -141,9 +142,7 @@ export default function Dashboard() {
         </div>
 
         {/* Table */}
-        {loading ? (
-          <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando…</div>
-        ) : clientes.length === 0 ? (
+        {!loading && clientes.length === 0 ? (
           <div className="card" style={{ padding: 64, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
             <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--slate-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--slate-400)' }}>
               <Users size={26} />
@@ -175,7 +174,9 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(c => {
+                  {loading ? (
+                    <TableSkeleton rows={6} widths={[60, 70, 50, 30, 30, 30, 55, 16]} />
+                  ) : filtered.map(c => {
                     const est = clienteEstado(c)
                     const tone = SECTOR_TONE[c.sector ?? ''] ?? 'slate'
                     return (
@@ -212,7 +213,7 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
-            {filtered.length === 0 && (
+            {!loading && filtered.length === 0 && (
               <div className="t-sm t-muted" style={{ textAlign: 'center', padding: 28 }}>
                 {q
                   ? `Sin resultados para "${q}".`
