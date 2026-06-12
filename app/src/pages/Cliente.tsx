@@ -215,7 +215,7 @@ export default function Cliente() {
       return
     }
     try {
-      await downloadReporte(token, id, tipo, periodo, formato)
+      await downloadReporte(token, id, tipo, periodo, formato, cliente?.nombre_empresa)
     } catch (err) {
       alert(`No se pudo exportar el reporte:\n${err instanceof Error ? err.message : String(err)}`)
     }

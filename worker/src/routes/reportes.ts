@@ -94,7 +94,7 @@ function montoPesos(cents: string | number | null): number {
 
 // 606 — versión Excel legible (encabezados + fila de totales)
 function excel606(rows: FacturaRow[]): Uint8Array {
-  const headers = ['#', 'RNC Proveedor', 'NCF', 'Tipo B/S', 'Fecha', 'Monto facturado', 'ITBIS facturado', 'Forma pago']
+  const headers = ['#', 'RNC Proveedor', 'NCF', 'Tipo B/S', 'Fecha', 'Monto facturado', 'ITBIS facturado', 'Tasa ITBIS', 'Forma pago']
   const body: Cell[][] = rows.map((f, i) => [
     i + 1,
     f.rnc_emisor ?? '',
@@ -103,17 +103,18 @@ function excel606(rows: FacturaRow[]): Uint8Array {
     formatFecha(f.fecha_emision),
     montoPesos(f.monto_total_cent),
     montoPesos(f.monto_itbis_cent),
+    f.tasa_itbis != null ? `${f.tasa_itbis}%` : '',
     f.forma_pago ?? '',
   ])
   const totMonto = rows.reduce((s, f) => s + montoPesos(f.monto_total_cent), 0)
   const totItbis = rows.reduce((s, f) => s + montoPesos(f.monto_itbis_cent), 0)
-  const total: Cell[] = ['', 'TOTALES', '', '', '', totMonto, totItbis, '']
+  const total: Cell[] = ['', 'TOTALES', '', '', '', totMonto, totItbis, '', '']
   return buildXlsx('606', [headers, ...body, total])
 }
 
 // 607 — versión Excel legible (encabezados + fila de totales)
 function excel607(rows: FacturaRow[]): Uint8Array {
-  const headers = ['#', 'RNC Comprador', 'NCF', 'Fecha', 'Monto facturado', 'ITBIS facturado']
+  const headers = ['#', 'RNC Comprador', 'NCF', 'Fecha', 'Monto facturado', 'ITBIS facturado', 'Tasa ITBIS']
   const body: Cell[][] = rows.map((f, i) => [
     i + 1,
     f.rnc_emisor ?? '',
@@ -121,10 +122,11 @@ function excel607(rows: FacturaRow[]): Uint8Array {
     formatFecha(f.fecha_emision),
     montoPesos(f.monto_total_cent),
     montoPesos(f.monto_itbis_cent),
+    f.tasa_itbis != null ? `${f.tasa_itbis}%` : '',
   ])
   const totMonto = rows.reduce((s, f) => s + montoPesos(f.monto_total_cent), 0)
   const totItbis = rows.reduce((s, f) => s + montoPesos(f.monto_itbis_cent), 0)
-  const total: Cell[] = ['', 'TOTALES', '', '', totMonto, totItbis]
+  const total: Cell[] = ['', 'TOTALES', '', '', totMonto, totItbis, '']
   return buildXlsx('607', [headers, ...body, total])
 }
 

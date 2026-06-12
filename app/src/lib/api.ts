@@ -104,6 +104,7 @@ export async function downloadReporte(
   tipo: '606' | '607',
   periodo: string,
   formato: 'txt' | 'xlsx' = 'txt',
+  clienteNombre?: string,
 ) {
   const qs = formato === 'xlsx' ? '?formato=xlsx' : ''
   const r = await authFetch(token, `/api/reportes/${clienteId}/${tipo}/${periodo}${qs}`)
@@ -112,9 +113,19 @@ export async function downloadReporte(
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${tipo}_${periodo}.${formato}`
+  a.download = buildFilename(tipo, periodo, formato, clienteNombre)
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function buildFilename(tipo: string, periodo: string, formato: string, clienteNombre?: string): string {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const date = `${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${now.getFullYear()}`
+  const h = now.getHours()
+  const time = `${h % 12 || 12}-${pad(now.getMinutes())}${h >= 12 ? 'pm' : 'am'}`
+  const safe = clienteNombre ? clienteNombre.replace(/[/\\:*?"<>|]/g, '').trim() + ' - ' : ''
+  return `${safe}${tipo} - ${date} ${time}.${formato}`
 }
 
 // ─── RNC ─────────────────────────────────────────────────────────────────────
