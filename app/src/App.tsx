@@ -4,6 +4,7 @@ import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Cliente from './pages/Cliente'
 import Login from './pages/Login'
+import Layout from './components/Layout'
 
 const Protected = ({ children }: { children: React.ReactNode }) => (
   <>
@@ -18,8 +19,8 @@ export default function App() {
       <Routes>
         <Route path="/"                   element={<Landing />} />
         <Route path="/sign-in/*"          element={<Login />} />
-        <Route path="/app"                element={<Protected><Dashboard /></Protected>} />
-        <Route path="/app/clientes/:id"   element={<Protected><Cliente /></Protected>} />
+        <Route path="/app"                element={<Protected><Layout><Dashboard /></Layout></Protected>} />
+        <Route path="/app/clientes/:id"   element={<Protected><Layout><Cliente /></Layout></Protected>} />
         <Route path="*"                   element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

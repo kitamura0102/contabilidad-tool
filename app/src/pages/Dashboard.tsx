@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth, UserButton } from '@clerk/clerk-react'
+import { useAuth } from '@clerk/clerk-react'
+import { Users, Receipt, CheckCircle, AlertTriangle, Search, Plus, ChevronRight, X } from 'lucide-react'
 import { getClientes, createCliente } from '../lib/api'
+import Topbar from '../components/Topbar'
+import Avatar from '../components/Avatar'
 
 type Cliente = {
   id: string
@@ -14,18 +17,32 @@ type Cliente = {
   activo: boolean
 }
 
+type Tone = 'blue' | 'green' | 'amber' | 'slate'
+
+const SECTOR_TONE: Record<string, Tone> = {
+  Comercio: 'blue', Restaurante: 'amber', Salud: 'green',
+  Servicios: 'slate', Construcción: 'slate',
+}
+
+function clienteEstado(c: Cliente): { cls: string; txt: string } {
+  if (c.facturas_pendientes > 0) return { cls: 'badge-blue',    txt: 'Procesando' }
+  if (c.facturas_revision  > 0) return { cls: 'badge-amber',   txt: 'Revisar' }
+  if (c.facturas_listas    > 0) return { cls: 'badge-green',   txt: 'Listo' }
+  return { cls: 'badge-neutral', txt: 'Sin facturas' }
+}
+
 export default function Dashboard() {
   const { getToken } = useAuth()
   const navigate = useNavigate()
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
+  const [q, setQ] = useState('')
+  const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ nombre_empresa: '', rnc: '', sector: '' })
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadClientes()
-  }, [])
+  useEffect(() => { loadClientes() }, [])
 
   async function loadClientes() {
     const token = await getToken()
@@ -41,141 +58,214 @@ export default function Dashboard() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setSaving(true)
     const token = await getToken()
-    if (!token) return
+    if (!token) { setSaving(false); return }
     try {
       await createCliente(token, form)
       setForm({ nombre_empresa: '', rnc: '', sector: '' })
-      setShowForm(false)
+      setShowModal(false)
       loadClientes()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
     }
   }
 
+  const activos = clientes.filter(c => c.activo).length
+  const totalFacturas = clientes.reduce((s, c) => s + c.facturas_pendientes + c.facturas_revision + c.facturas_listas, 0)
+  const totalRevision = clientes.reduce((s, c) => s + c.facturas_revision, 0)
+  const listos = clientes.filter(c => c.facturas_listas > 0 && c.facturas_pendientes === 0 && c.facturas_revision === 0).length
+
+  const filtered = clientes.filter(c =>
+    c.nombre_empresa.toLowerCase().includes(q.toLowerCase()) ||
+    c.rnc.includes(q.replace(/\D/g, ''))
+  )
+
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Cifra</h1>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button onClick={() => setShowForm(true)} style={btnStyle}>
-            + Nuevo cliente
+    <>
+      <Topbar
+        title="Clientes"
+        subtitle={`${activos} empresa${activos !== 1 ? 's' : ''} activa${activos !== 1 ? 's' : ''}`}
+        actions={
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            <Plus size={15} />Agregar cliente
           </button>
-          <UserButton />
-        </div>
-      </header>
+        }
+      />
 
-      {showForm && (
-        <form onSubmit={handleCreate} style={cardStyle}>
-          <h2 style={{ marginTop: 0 }}>Nuevo cliente</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="content">
+        {/* Stat cards */}
+        <div className="stat-grid">
+          <StatCard icon={<Users size={17} />} tone="blue" label="Clientes activos" value={activos} />
+          <StatCard icon={<Receipt size={17} />} tone="slate" label="Facturas totales" value={totalFacturas} />
+          <StatCard icon={<CheckCircle size={17} />} tone="green" label="Listos para exportar" value={listos} sub={`de ${activos} clientes`} />
+          <StatCard icon={<AlertTriangle size={17} />} tone="amber" label="Por revisar" value={totalRevision} sub="facturas con incidencias" />
+        </div>
+
+        {/* Toolbar */}
+        <div className="toolbar">
+          <div className="search-box">
+            <Search size={15} />
             <input
-              placeholder="Nombre empresa"
-              value={form.nombre_empresa}
-              onChange={e => setForm(f => ({ ...f, nombre_empresa: e.target.value }))}
-              required
-              style={inputStyle}
+              placeholder="Buscar por nombre o RNC…"
+              value={q}
+              onChange={e => setQ(e.target.value)}
             />
-            <input
-              placeholder="RNC (9 u 11 dígitos)"
-              value={form.rnc}
-              onChange={e => setForm(f => ({ ...f, rnc: e.target.value }))}
-              required
-              style={inputStyle}
-            />
-            <input
-              placeholder="Sector (opcional)"
-              value={form.sector}
-              onChange={e => setForm(f => ({ ...f, sector: e.target.value }))}
-              style={inputStyle}
-            />
-                {error && (
-              <div style={{ color: '#dc2626', fontSize: 13, background: '#fee2e2', padding: '8px 12px', borderRadius: 6 }}>
-                {error}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="submit" style={btnStyle}>Guardar</button>
-              <button type="button" onClick={() => { setShowForm(false); setError(null) }} style={btnSecondaryStyle}>Cancelar</button>
-            </div>
           </div>
-        </form>
-      )}
+          <div className="spacer" />
+          <span className="t-sm t-muted">{filtered.length} cliente{filtered.length !== 1 ? 's' : ''}</span>
+        </div>
 
-      {loading ? (
-        <p>Cargando...</p>
-      ) : clientes.length === 0 ? (
-        <p style={{ color: '#888' }}>No hay clientes todavía. Agrega el primero.</p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {clientes.map(c => (
-            <div
-              key={c.id}
-              onClick={() => navigate(`/app/clientes/${c.id}`)}
-              style={{ ...cardStyle, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-            >
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 16 }}>{c.nombre_empresa}</div>
-                <div style={{ color: '#888', fontSize: 13 }}>RNC {c.rnc} {c.sector ? `· ${c.sector}` : ''}</div>
-              </div>
-              <div style={{ display: 'flex', gap: 12, fontSize: 13 }}>
-                {c.facturas_pendientes > 0 && (
-                  <span style={badge('orange')}>{c.facturas_pendientes} procesando</span>
-                )}
-                {c.facturas_revision > 0 && (
-                  <span style={badge('red')}>{c.facturas_revision} revisar</span>
-                )}
-                {c.facturas_listas > 0 && (
-                  <span style={badge('green')}>{c.facturas_listas} listas</span>
-                )}
+        {/* Table */}
+        {loading ? (
+          <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando…</div>
+        ) : clientes.length === 0 ? (
+          <div className="card" style={{ padding: 64, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--slate-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--slate-400)' }}>
+              <Users size={26} />
+            </div>
+            <div>
+              <div className="t-h2" style={{ marginBottom: 4 }}>Agrega tu primer cliente para empezar</div>
+              <div className="t-sm t-muted" style={{ maxWidth: 360 }}>
+                Registra las empresas que manejas. La IA procesa sus facturas y genera los reportes 606/607 para la DGII.
               </div>
             </div>
-          ))}
+            <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+              <Plus size={15} />Agregar cliente
+            </button>
+          </div>
+        ) : (
+          <div className="tbl-wrap">
+            <div className="tbl-scroll">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th style={{ width: '32%' }}>Cliente</th>
+                    <th>RNC</th>
+                    <th>Sector</th>
+                    <th style={{ textAlign: 'right' }}>Procesando</th>
+                    <th style={{ textAlign: 'right' }}>Revisar</th>
+                    <th style={{ textAlign: 'right' }}>Procesadas</th>
+                    <th>Estado</th>
+                    <th style={{ width: 40 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(c => {
+                    const est = clienteEstado(c)
+                    const tone = SECTOR_TONE[c.sector ?? ''] ?? 'slate'
+                    return (
+                      <tr key={c.id} className="clickable" onClick={() => navigate(`/app/clientes/${c.id}`)}>
+                        <td>
+                          <div className="cell-name">
+                            <Avatar name={c.nombre_empresa} size={30} tone={tone} />
+                            <div style={{ minWidth: 0 }}>
+                              <div className="cell-strong" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre_empresa}</div>
+                              {c.sector && <div className="t-faint" style={{ fontSize: 11.5 }}>{c.sector}</div>}
+                            </div>
+                          </div>
+                        </td>
+                        <td><span className="mono" style={{ fontSize: 12.5 }}>{c.rnc}</span></td>
+                        <td className="t-muted">{c.sector || <span className="muted-cell">—</span>}</td>
+                        <td className="num">{c.facturas_pendientes || <span className="muted-cell">—</span>}</td>
+                        <td className="num">{c.facturas_revision || <span className="muted-cell">—</span>}</td>
+                        <td className="num">{c.facturas_listas || <span className="muted-cell">—</span>}</td>
+                        <td><span className={`badge ${est.cls}`}><span className="dot" />{est.txt}</span></td>
+                        <td><ChevronRight size={16} style={{ color: 'var(--text-faint)' }} /></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {filtered.length === 0 && (
+              <div className="t-sm t-muted" style={{ textAlign: 'center', padding: 28 }}>Sin resultados para "{q}".</div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* New client modal */}
+      {showModal && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) { setShowModal(false); setError(null) } }}>
+          <div className="modal">
+            <div className="modal-head">
+              <div className="t-h2" style={{ flex: 1 }}>Nuevo cliente</div>
+              <button className="btn btn-ghost btn-icon" onClick={() => { setShowModal(false); setError(null) }}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleCreate}>
+              <div className="modal-body">
+                <div>
+                  <label className="field-label">Nombre de la empresa</label>
+                  <input
+                    className="input"
+                    placeholder="Ferretería del Cibao SRL"
+                    value={form.nombre_empresa}
+                    onChange={e => setForm(f => ({ ...f, nombre_empresa: e.target.value }))}
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="field-label">RNC</label>
+                  <input
+                    className="input mono"
+                    placeholder="101234567"
+                    value={form.rnc}
+                    onChange={e => setForm(f => ({ ...f, rnc: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="field-label">Sector <span style={{ color: 'var(--text-faint)' }}>(opcional)</span></label>
+                  <input
+                    className="input"
+                    placeholder="Comercio, Servicios, Construcción…"
+                    value={form.sector}
+                    onChange={e => setForm(f => ({ ...f, sector: e.target.value }))}
+                  />
+                </div>
+                {error && (
+                  <div style={{ fontSize: 13, color: 'var(--red-700)', background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 'var(--r-sm)', padding: '9px 12px' }}>
+                    {error}
+                  </div>
+                )}
+              </div>
+              <div className="modal-foot">
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowModal(false); setError(null) }}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Guardando…' : 'Crear cliente'}</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
-const cardStyle: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #e5e7eb',
-  borderRadius: 8,
-  padding: 16,
+function StatCard({ icon, tone, label, value, sub }: {
+  icon: React.ReactNode; tone: 'blue' | 'green' | 'amber' | 'slate'
+  label: string; value: number | string; sub?: string
+}) {
+  const tones: Record<string, [string, string]> = {
+    blue:  ['var(--blue-50)',  'var(--accent)'],
+    green: ['var(--green-50)', 'var(--green-600)'],
+    amber: ['var(--amber-50)', 'var(--amber-600)'],
+    slate: ['var(--slate-100)','var(--slate-500)'],
+  }
+  const [bg, fg] = tones[tone]
+  return (
+    <div className="card stat-card">
+      <div className="stat-top">
+        <span className="stat-label">{label}</span>
+        <span className="stat-ico" style={{ background: bg, color: fg }}>{icon}</span>
+      </div>
+      <div className="stat-value">{value}</div>
+      {sub && <div className="stat-sub">{sub}</div>}
+    </div>
+  )
 }
-
-const btnStyle: React.CSSProperties = {
-  background: '#111',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 6,
-  padding: '8px 16px',
-  cursor: 'pointer',
-  fontSize: 14,
-}
-
-const btnSecondaryStyle: React.CSSProperties = {
-  background: '#f3f4f6',
-  color: '#111',
-  border: 'none',
-  borderRadius: 6,
-  padding: '8px 16px',
-  cursor: 'pointer',
-  fontSize: 14,
-}
-
-const inputStyle: React.CSSProperties = {
-  border: '1px solid #d1d5db',
-  borderRadius: 6,
-  padding: '8px 12px',
-  fontSize: 14,
-  outline: 'none',
-}
-
-const badge = (color: 'green' | 'orange' | 'red'): React.CSSProperties => ({
-  padding: '2px 8px',
-  borderRadius: 12,
-  background: color === 'green' ? '#dcfce7' : color === 'orange' ? '#ffedd5' : '#fee2e2',
-  color: color === 'green' ? '#16a34a' : color === 'orange' ? '#ea580c' : '#dc2626',
-  fontWeight: 500,
-})
