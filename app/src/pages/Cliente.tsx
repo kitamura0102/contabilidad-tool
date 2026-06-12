@@ -121,7 +121,7 @@ export default function Cliente() {
     setImagen(null)
     setImagenLoading(true)
     setEditFields(
-      factura.estado === 'pendiente_revision'
+      (factura.estado === 'pendiente_revision' || factura.estado === 'procesada')
         ? {
             rnc_emisor:    factura.rnc_emisor ?? '',
             ncf:           factura.ncf ?? '',
@@ -427,11 +427,13 @@ export default function Cliente() {
               {/* Derecha: datos */}
               <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-                {panel.estado === 'pendiente_revision' && editFields ? (
+                {(panel.estado === 'pendiente_revision' || panel.estado === 'procesada') && editFields ? (
                   <>
-                    <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 6, padding: '8px 12px' }}>
-                      OCR con baja confianza en uno o más campos. Verifica en la imagen y corrige si hace falta.
-                    </div>
+                    {panel.estado === 'pendiente_revision' && (
+                      <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 6, padding: '8px 12px' }}>
+                        OCR con baja confianza en uno o más campos. Verifica en la imagen y corrige si hace falta.
+                      </div>
+                    )}
 
                     {PANEL_FIELDS.map(({ label, key, type, placeholder }) => (
                       <div key={key}>
@@ -465,7 +467,7 @@ export default function Cliente() {
                       disabled={saving}
                       style={{ ...btnStyle, marginTop: 8, opacity: saving ? 0.6 : 1 }}
                     >
-                      {saving ? 'Guardando...' : 'Guardar y marcar como procesada'}
+                      {saving ? 'Guardando...' : 'Guardar cambios'}
                     </button>
                   </>
                 ) : (
