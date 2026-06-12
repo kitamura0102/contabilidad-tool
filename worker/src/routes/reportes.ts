@@ -11,7 +11,7 @@ reportes.use('*', requireAuth)
 type FacturaRow = {
   rnc_emisor: string | null
   ncf: string | null
-  fecha_emision: string | null
+  fecha_emision: string | Date | null  // Neon puede devolver DATE como objeto Date
   monto_total_cent: string | number | null  // Neon devuelve BIGINT como string
   monto_itbis_cent: string | number | null
   tasa_itbis: number | null
@@ -128,10 +128,10 @@ function excel607(rows: FacturaRow[]): Uint8Array {
   return buildXlsx('607', [headers, ...body, total])
 }
 
-function formatFecha(iso: string | null): string {
+function formatFecha(iso: string | Date | null): string {
   if (!iso) return ''
-  // fecha_emision llega como "2026-05-29" (DATE) o "2026-05-29T00:00:00.000Z" (TIMESTAMPTZ)
-  return iso.slice(0, 10).replace(/-/g, '')
+  const s = typeof iso === 'string' ? iso : iso.toISOString()
+  return s.slice(0, 10).replace(/-/g, '')
 }
 
 // Neon devuelve BIGINT como string para evitar pérdida de precisión en JS.
