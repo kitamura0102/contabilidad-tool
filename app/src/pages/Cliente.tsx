@@ -64,6 +64,7 @@ export default function Cliente() {
     return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`
   })
   const [uploading, setUploading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const [panel, setPanel] = useState<Factura | null>(null)
   const [imagen, setImagen] = useState<{ url: string; isPdf: boolean } | null>(null)
@@ -74,6 +75,14 @@ export default function Cliente() {
   useEffect(() => {
     if (id) load()
   }, [id, tab])
+
+  // Auto-refresh cada 10s mientras haya facturas pendientes de procesar
+  useEffect(() => {
+    const hasPending = facturas.some(f => f.estado === 'en_cola' || f.estado === 'procesando')
+    if (!hasPending) return
+    const timer = setInterval(() => load(), 10_000)
+    return () => clearInterval(timer)
+  }, [facturas])
 
   useEffect(() => {
     if (!panel) return
@@ -89,17 +98,22 @@ export default function Cliente() {
     return () => window.removeEventListener('keydown', onKey)
   }, [panel, imagen])
 
-  async function load() {
+  async function load(showSpinner = false) {
     const token = await getToken()
     if (!token || !id) return
-    const [c, f] = await Promise.all([
-      getCliente(token, id),
-      getFacturas(token, { cliente_id: id, tipo: tab }),
-    ])
-    setCliente(c)
-    setFacturas(f)
-    f.filter((x: Factura) => x.estado === 'error_extraccion' && x.ultimo_error)
-      .forEach((x: Factura) => console.warn(`Factura ${x.id} falló:`, x.ultimo_error))
+    if (showSpinner) setRefreshing(true)
+    try {
+      const [c, f] = await Promise.all([
+        getCliente(token, id),
+        getFacturas(token, { cliente_id: id, tipo: tab }),
+      ])
+      setCliente(c)
+      setFacturas(f)
+      f.filter((x: Factura) => x.estado === 'error_extraccion' && x.ultimo_error)
+        .forEach((x: Factura) => console.warn(`Factura ${x.id} falló:`, x.ultimo_error))
+    } finally {
+      if (showSpinner) setRefreshing(false)
+    }
   }
 
   async function openPanel(factura: Factura) {
@@ -232,7 +246,7 @@ export default function Cliente() {
 
       {/* Tabs + acciones */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {(['compra', 'venta'] as const).map(t => (
             <button
               key={t}
@@ -250,6 +264,17 @@ export default function Cliente() {
               {t === 'compra' ? 'Compras (606)' : 'Ventas (607)'}
             </button>
           ))}
+          <button
+            onClick={() => load(true)}
+            disabled={refreshing}
+            title="Actualizar lista de facturas"
+            style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 15, color: '#666', lineHeight: 1 }}
+          >
+            {refreshing ? '⟳' : '↻'}
+          </button>
+          {facturas.some(f => f.estado === 'en_cola' || f.estado === 'procesando') && (
+            <span style={{ fontSize: 11, color: '#6b7280' }}>actualizando cada 10s</span>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
