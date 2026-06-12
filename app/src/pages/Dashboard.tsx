@@ -111,7 +111,7 @@ export default function Dashboard() {
           {clientes.map(c => (
             <div
               key={c.id}
-              onClick={() => navigate(`/clientes/${c.id}`)}
+              onClick={() => navigate(`/app/clientes/${c.id}`)}
               style={{ ...cardStyle, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
               <div>

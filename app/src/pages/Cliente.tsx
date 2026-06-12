@@ -233,7 +233,7 @@ export default function Cliente() {
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 16px' }}>
-      <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginBottom: 16, color: '#666' }}>
+      <button onClick={() => navigate('/app')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginBottom: 16, color: '#666' }}>
         ← Volver
       </button>
 
