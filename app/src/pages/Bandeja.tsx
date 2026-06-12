@@ -96,8 +96,9 @@ export default function Bandeja() {
     setBusy(action)
     setProgress({ done: 0, total: ids.length })
     let done = 0
+    let ok = 0
     for (const id of ids) {
-      try { await fn(token, id) } catch { /* continúa con el resto */ }
+      try { await fn(token, id); ok += 1 } catch { /* continúa con el resto */ }
       done += 1
       setProgress({ done, total: ids.length })
     }
@@ -105,7 +106,11 @@ export default function Bandeja() {
     setBusy(null)
     setSelected(new Set())
     await load()
-    setToast(`${done} factura${done !== 1 ? 's' : ''} ${label}`)
+    setToast(
+      ok === ids.length
+        ? `${ok} factura${ok !== 1 ? 's' : ''} ${label}`
+        : `${ok} de ${ids.length} ${label} · ${ids.length - ok} con error`
+    )
   }
 
   const doReintentar = () => runBulk('reintentar', selectedFacturas.filter(f => f.estado === 'error_extraccion').map(f => f.id), reintentarFactura, 'reencoladas')

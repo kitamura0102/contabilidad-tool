@@ -118,8 +118,9 @@ export default function Cliente() {
     setBusy(action)
     setProgress({ done: 0, total: ids.length })
     let done = 0
+    let ok = 0
     for (const fid of ids) {
-      try { await fn(token, fid) } catch { /* sigue */ }
+      try { await fn(token, fid); ok += 1 } catch { /* sigue */ }
       done += 1
       setProgress({ done, total: ids.length })
     }
@@ -127,7 +128,11 @@ export default function Cliente() {
     setBusy(null)
     setSelected(new Set())
     await load()
-    setToast(`${done} factura${done !== 1 ? 's' : ''} ${label}`)
+    setToast(
+      ok === ids.length
+        ? `${ok} factura${ok !== 1 ? 's' : ''} ${label}`
+        : `${ok} de ${ids.length} ${label} · ${ids.length - ok} con error`
+    )
   }
 
   const periodoYM = periodo
