@@ -58,8 +58,8 @@ export default function Landing() {
           <span style={{ color: 'var(--blue-300)' }}>listos en minutos</span>
         </h1>
 
-        <p style={{ fontSize: 'clamp(16px, 2vw, 19px)', color: 'var(--text-on-dark-muted)', maxWidth: 520, margin: '0 auto 40px', lineHeight: 1.6 }}>
-          Sube las fotos de las facturas de tus clientes. Cifra extrae RNC, NCF, montos e ITBIS con IA y genera los reportes para la DGII.
+        <p style={{ fontSize: 'clamp(16px, 2vw, 19px)', color: 'var(--text-on-dark-muted)', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>
+          Sube las facturas de todos tus clientes. La IA extrae RNC, NCF e ITBIS — y desde una sola bandeja las revisas y exportas sin entrar cliente por cliente.
         </p>
 
         <div className="row gap-3" style={{ justifyContent: 'center', flexWrap: 'wrap', marginBottom: 68 }}>
@@ -172,52 +172,66 @@ export default function Landing() {
   )
 }
 
-// ── App mockup (matches the real app's slate/blue system) ──
+// ── App mockup: Bandeja (cross-client queue) ──
 function AppMockup() {
   const rows = [
-    { estado: 'Procesada', cls: 'badge-green', rnc: '130161453', ncf: 'B0100000089', total: 'RD$ 14,160' },
-    { estado: 'Procesada', cls: 'badge-green', rnc: '101234567', ncf: 'B0100000234', total: 'RD$ 5,900' },
-    { estado: 'Revisar', cls: 'badge-amber', rnc: '131789392', ncf: 'E310000033552', total: 'RD$ 4,720' },
-    { estado: 'En cola', cls: 'badge-neutral', rnc: '—', ncf: '—', total: '—' },
+    { estado: 'Revisar',   cls: 'badge-amber',   cliente: 'Distribuidora García', ncf: 'B0100000089', total: 'RD$ 14,160' },
+    { estado: 'Revisar',   cls: 'badge-amber',   cliente: 'Almacén del Norte',    ncf: 'E310000033552', total: 'RD$ 4,720' },
+    { estado: 'Error',     cls: 'badge-red',     cliente: 'Ferretería Pérez',     ncf: '—',           total: '—' },
+    { estado: 'Revisar',   cls: 'badge-amber',   cliente: 'Comercial Méndez',     ncf: 'B0100000234', total: 'RD$ 5,900' },
   ]
   return (
     <div style={{
-      background: 'var(--bg-surface)', borderRadius: 14, overflow: 'hidden', width: '100%', maxWidth: 600,
+      background: 'var(--bg-surface)', borderRadius: 14, overflow: 'hidden', width: '100%', maxWidth: 640,
       textAlign: 'left', fontSize: 13,
       boxShadow: '0 0 0 1px rgba(255,255,255,0.06), 0 32px 80px rgba(0,0,0,0.5), 0 0 90px rgba(43,92,230,0.08)',
     }}>
+      {/* Window chrome */}
       <div style={{ background: 'var(--slate-900)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
         {['#ff5f57', '#ffbd2e', '#28c840'].map(c => <span key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
         <div className="mono" style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 5, padding: '3px 12px', fontSize: 11, color: 'var(--text-on-dark-muted)', marginLeft: 10 }}>
-          cifra.app/clientes/…
+          cifra.app/bandeja
         </div>
       </div>
+      {/* Header */}
       <div style={{ padding: '13px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-strong)' }}>Distribuidora García, SRL</div>
-          <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 1 }}>RNC 131789392 · Comercio</div>
-        </div>
         <div className="row gap-2">
-          <span style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', color: 'var(--text-strong)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500 }}>Exportar 606</span>
-          <span style={{ background: 'var(--accent)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500 }}>Subir facturas</span>
+          <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-strong)' }}>Bandeja</span>
+          <span className="badge badge-amber" style={{ height: 20 }}>4 por revisar</span>
         </div>
+        <span style={{ background: 'var(--accent)', color: '#fff', padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500 }}>Marcar revisadas</span>
       </div>
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 14, alignItems: 'center' }}>
-        <span style={{ color: 'var(--text-strong)', fontSize: 12, fontWeight: 600, borderBottom: '2px solid var(--accent)', paddingBottom: 6 }}>Compras (606)</span>
-        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Ventas (607)</span>
-        <span className="row gap-1" style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-faint)' }}><Sparkles size={11} />actualizando</span>
+      {/* Filter tabs */}
+      <div style={{ padding: '0 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 16 }}>
+        {['Todas', 'Por revisar', 'Errores'].map((t, i) => (
+          <span key={t} style={{
+            fontSize: 12, padding: '8px 0', color: i === 1 ? 'var(--text-strong)' : 'var(--text-muted)',
+            fontWeight: i === 1 ? 600 : 400,
+            borderBottom: i === 1 ? '2px solid var(--accent)' : '2px solid transparent',
+          }}>{t}{i === 1 ? ' 4' : i === 2 ? ' 1' : ' 5'}</span>
+        ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '92px 104px 1fr 92px', padding: '7px 16px', background: 'var(--slate-50)', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
-        <span>Estado</span><span>RNC</span><span>NCF</span><span style={{ textAlign: 'right' }}>Total</span>
+      {/* Table header */}
+      <div style={{ display: 'grid', gridTemplateColumns: '16px 80px 1fr 110px 80px', padding: '7px 16px', gap: 12, background: 'var(--slate-50)', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+        <span />
+        <span>Estado</span><span>Cliente</span><span>NCF</span><span style={{ textAlign: 'right' }}>Total</span>
       </div>
+      {/* Rows */}
       {rows.map((r, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '92px 104px 1fr 92px', padding: '9px 16px', borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : 'none', alignItems: 'center' }}>
-          <span className={`badge ${r.cls}`} style={{ height: 20 }}><span className="dot" />{r.estado}</span>
-          <span className="mono" style={{ fontSize: 11.5, color: 'var(--text)' }}>{r.rnc}</span>
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '16px 80px 1fr 110px 80px', padding: '9px 16px', gap: 12, borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : 'none', alignItems: 'center' }}>
+          <span style={{ width: 12, height: 12, borderRadius: 3, border: '1.5px solid var(--border-strong)', display: 'inline-block' }} />
+          <span className={`badge ${r.cls}`} style={{ height: 20 }}>{r.estado}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.cliente}</span>
           <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{r.ncf}</span>
           <span className="mono" style={{ fontSize: 12, color: 'var(--text-strong)', textAlign: 'right' }}>{r.total}</span>
         </div>
       ))}
+      {/* Bulk bar */}
+      <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', background: 'var(--slate-50)', display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>4 seleccionadas</span>
+        <span style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11 }}>↺ Reintentar</span>
+        <span style={{ background: 'var(--accent)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500 }}>✓ Marcar revisadas</span>
+      </div>
     </div>
   )
 }

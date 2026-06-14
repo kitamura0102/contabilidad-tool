@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
-import { FileText, FileSpreadsheet } from 'lucide-react'
+import { FileText, FileSpreadsheet, History } from 'lucide-react'
 import { getClientes, getFacturas, downloadReporte } from '../lib/api'
 import { Factura } from '../lib/factura'
 import Topbar from '../components/Topbar'
@@ -31,7 +31,7 @@ export default function Reportes() {
     try {
       const [cs, fs] = await Promise.all([
         getClientes(token),
-        getFacturas(token, { estado: 'procesada' }),
+        getFacturas(token, { estado: 'procesada', limit: 2000 }),
       ])
       setClientes(cs)
       setProcesadas(fs)
@@ -56,6 +56,16 @@ export default function Reportes() {
     const k = counts[c.id]
     return k && (k.compra > 0 || k.venta > 0)
   })
+
+  // All distinct periods (YYYY-MM) with at least one procesada, sorted desc.
+  const periodosDisponibles = useMemo(() => {
+    const set = new Set<string>()
+    for (const f of procesadas) {
+      const ym = f.fecha_emision?.slice(0, 7)
+      if (ym) set.add(ym)
+    }
+    return [...set].sort().reverse()
+  }, [procesadas])
 
   async function handleDownload(cliente: Cliente, tipo: '606' | '607', formato: 'txt' | 'xlsx') {
     const token = await getToken()
@@ -143,6 +153,49 @@ export default function Reportes() {
           <div className="t-sm t-muted row gap-2" style={{ marginTop: 12 }}>
             <FileText size={13} style={{ color: 'var(--accent)' }} />
             El <strong style={{ color: 'var(--text)' }}>.txt</strong> es el archivo oficial para la Oficina Virtual de la DGII; el <strong style={{ color: 'var(--text)' }}>Excel</strong> es para tu revisión.
+          </div>
+        )}
+
+        {!loading && periodosDisponibles.length > 1 && (
+          <div style={{ marginTop: 28 }}>
+            <div className="row gap-2" style={{ marginBottom: 10 }}>
+              <History size={14} style={{ color: 'var(--text-muted)' }} />
+              <span className="t-sm t-muted" style={{ fontWeight: 600 }}>Historial disponible</span>
+            </div>
+            <div className="row gap-2" style={{ flexWrap: 'wrap' }}>
+              {periodosDisponibles.map(ym => {
+                const label = new Date(`${ym}-01T00:00:00`).toLocaleDateString('es-DO', { month: 'short', year: 'numeric' })
+                const clientCount = clientes.filter(c => {
+                  const m: Record<string, { compra: number; venta: number }> = {}
+                  for (const f of procesadas) {
+                    if (f.fecha_emision?.slice(0, 7) !== ym) continue
+                    const entry = (m[f.cliente_id] ??= { compra: 0, venta: 0 })
+                    if (f.tipo === 'compra') entry.compra++ ; else entry.venta++
+                  }
+                  const k = m[c.id]
+                  return k && (k.compra > 0 || k.venta > 0)
+                }).length
+                const isActive = ym === periodo
+                return (
+                  <button
+                    key={ym}
+                    onClick={() => setPeriodo(ym)}
+                    className="btn btn-sm"
+                    style={{
+                      background: isActive ? 'var(--blue-50)' : 'var(--bg-surface)',
+                      border: `1px solid ${isActive ? 'var(--blue-200)' : 'var(--border)'}`,
+                      color: isActive ? 'var(--accent-text)' : 'var(--text)',
+                      fontWeight: isActive ? 600 : 400,
+                    }}
+                  >
+                    {label}
+                    <span style={{ marginLeft: 4, color: isActive ? 'var(--accent)' : 'var(--text-faint)', fontSize: 11 }}>
+                      · {clientCount} cliente{clientCount !== 1 ? 's' : ''}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>

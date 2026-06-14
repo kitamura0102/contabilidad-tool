@@ -9,10 +9,11 @@ export const facturas = new Hono<{ Bindings: Env; Variables: Variables }>()
 
 facturas.use('*', requireAuth)
 
-// GET /api/facturas?cliente_id=&estado=&tipo=
+// GET /api/facturas?cliente_id=&estado=&tipo=&limit=
 facturas.get('/', async (c) => {
   const userId = c.get('userId')
-  const { cliente_id, estado, tipo } = c.req.query()
+  const { cliente_id, estado, tipo, limit: limitParam } = c.req.query()
+  const limit = Math.min(Math.max(parseInt(limitParam ?? '100', 10) || 100, 1), 2000)
   const sql = getDb(c.env.DATABASE_URL)
 
   const rows = await sql.transaction([
@@ -25,7 +26,7 @@ facturas.get('/', async (c) => {
         AND (${estado ?? null}::text IS NULL OR f.estado = ${estado ?? null}::text)
         AND (${tipo ?? null}::text IS NULL OR f.tipo = ${tipo ?? null}::text)
       ORDER BY f.creado_en DESC
-      LIMIT 100
+      LIMIT ${limit}
     `,
   ] as Parameters<typeof sql.transaction>[0])
 

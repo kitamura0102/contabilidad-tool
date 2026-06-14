@@ -44,9 +44,10 @@ export async function getFacturas(token: string, params: {
   cliente_id?: string
   estado?: string
   tipo?: string
+  limit?: number
 }) {
   const qs = new URLSearchParams(
-    Object.fromEntries(Object.entries(params).filter(([, v]) => v != null)) as Record<string, string>
+    Object.fromEntries(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])) as Record<string, string>
   )
   const r = await authFetch(token, `/api/facturas?${qs}`)
   if (!r.ok) throw new Error(await r.text())
