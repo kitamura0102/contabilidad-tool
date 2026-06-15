@@ -48,21 +48,21 @@ export default function Landing() {
         backgroundSize: 'auto, 46px 46px, 46px 46px',
         padding: '84px 24px 96px', textAlign: 'center',
       }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(43,92,230,0.12)', border: '1px solid rgba(43,92,230,0.28)', borderRadius: 999, padding: '6px 15px', marginBottom: 34 }}>
+        <div className="land-up land-up-1" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(43,92,230,0.12)', border: '1px solid rgba(43,92,230,0.28)', borderRadius: 999, padding: '6px 15px', marginBottom: 34 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--blue-300)', boxShadow: '0 0 8px var(--blue-300)' }} />
           <span style={{ fontSize: 12.5, color: 'var(--blue-300)', fontWeight: 500 }}>Hecho para contadores dominicanos</span>
         </div>
 
-        <h1 style={{ fontSize: 'clamp(40px, 7vw, 72px)', fontWeight: 600, color: '#fff', lineHeight: 1.04, letterSpacing: '-0.03em', maxWidth: 820, margin: '0 auto 22px', textWrap: 'balance' }}>
+        <h1 className="land-up land-up-2" style={{ fontSize: 'clamp(40px, 7vw, 72px)', fontWeight: 600, color: '#fff', lineHeight: 1.04, letterSpacing: '-0.03em', maxWidth: 820, margin: '0 auto 22px', textWrap: 'balance' }}>
           Tu 606 y 607,{' '}
           <span style={{ color: 'var(--blue-300)' }}>listos en minutos</span>
         </h1>
 
-        <p style={{ fontSize: 'clamp(16px, 2vw, 19px)', color: 'var(--text-on-dark-muted)', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>
+        <p className="land-up land-up-3" style={{ fontSize: 'clamp(16px, 2vw, 19px)', color: 'var(--text-on-dark-muted)', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>
           Sube las facturas de todos tus clientes. La IA extrae RNC, NCF e ITBIS — y desde una sola bandeja las revisas y exportas sin entrar cliente por cliente.
         </p>
 
-        <div className="row gap-3" style={{ justifyContent: 'center', flexWrap: 'wrap', marginBottom: 68 }}>
+        <div className="row gap-3 land-up land-up-4" style={{ justifyContent: 'center', flexWrap: 'wrap', marginBottom: 68 }}>
           <SignedIn>
             <button className="btn btn-primary" style={heroBtn} onClick={goApp}>Ir al app<ArrowRight size={16} /></button>
           </SignedIn>
@@ -72,7 +72,7 @@ export default function Landing() {
           </SignedOut>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '0 16px' }}>
+        <div className="land-up land-up-5" style={{ display: 'flex', justifyContent: 'center', padding: '0 16px' }}>
           <AppMockup />
         </div>
       </section>
@@ -88,9 +88,9 @@ export default function Landing() {
               { n: 3, icon: ScanLine, title: 'Revisa con la imagen', desc: 'Corrige cualquier campo con la factura al lado. Avanza por la bandeja con "Guardar y siguiente".' },
               { n: 4, icon: FileText, title: 'Exporta a la DGII', desc: 'Descarga el 606 o 607 en .txt oficial para la Oficina Virtual, o en Excel para tu respaldo.' },
             ].map(step => (
-              <div key={step.n}>
+              <div key={step.n} className="feat-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                  <span style={{ width: 36, height: 36, borderRadius: 9, background: 'var(--blue-50)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span className="feat-icon" style={{ width: 36, height: 36, borderRadius: 9, background: 'var(--blue-50)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <step.icon size={18} />
                   </span>
                   <span className="mono" style={{ fontSize: 13, color: 'var(--text-faint)', fontWeight: 600 }}>0{step.n}</span>
@@ -116,8 +116,8 @@ export default function Landing() {
               { icon: ScanLine, title: 'Verificación con la imagen', desc: 'Ve la factura y los datos extraídos lado a lado. Corrige cualquier campo con un clic.' },
               { icon: Sparkles, title: 'Bandeja en lote', desc: 'Revisa, reintenta o exporta facturas de todos tus clientes a la vez, sin entrar uno por uno.' },
             ].map(f => (
-              <div key={f.title}>
-                <span style={{ display: 'inline-flex', width: 38, height: 38, borderRadius: 9, background: 'var(--blue-50)', color: 'var(--accent)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+              <div key={f.title} className="feat-card">
+                <span className="feat-icon" style={{ display: 'inline-flex', width: 38, height: 38, borderRadius: 9, background: 'var(--blue-50)', color: 'var(--accent)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
                   <f.icon size={19} />
                 </span>
                 <div style={{ fontWeight: 600, fontSize: 15.5, marginBottom: 6, letterSpacing: '-0.01em', color: 'var(--text-strong)' }}>{f.title}</div>
