@@ -76,8 +76,8 @@ export default function Dashboard() {
   }
 
   const activos = clientes.filter(c => c.activo).length
-  const totalRevision = clientes.reduce((s, c) => s + c.facturas_revision, 0)
-  const isListo = (c: Cliente) => c.facturas_listas > 0 && c.facturas_pendientes === 0 && c.facturas_revision === 0
+  const totalRevision = clientes.reduce((s, c) => s + (Number(c.facturas_revision) || 0), 0)
+  const isListo = (c: Cliente) => Number(c.facturas_listas) > 0 && Number(c.facturas_pendientes) === 0 && Number(c.facturas_revision) === 0
   const listos = clientes.filter(isListo).length
 
   const matchesFilter = (c: Cliente) =>

@@ -283,8 +283,8 @@ export default function Cliente() {
                 <tfoot>
                   <tr>
                     <td colSpan={5}>Totales · {filtered.length} factura{filtered.length !== 1 ? 's' : ''}</td>
-                    <td className="num">{fmtMoney(filtered.reduce((s, f) => s + (f.monto_total_cent ?? 0), 0))}</td>
-                    <td className="num">{fmtMoney(filtered.reduce((s, f) => s + (f.monto_itbis_cent ?? 0), 0))}</td>
+                    <td className="num">{fmtMoney(filtered.reduce((s, f) => s + (Number(f.monto_total_cent) || 0), 0))}</td>
+                    <td className="num">{fmtMoney(filtered.reduce((s, f) => s + (Number(f.monto_itbis_cent) || 0), 0))}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>
