@@ -31,6 +31,19 @@ async function processOne(
   env: Env,
   sql: ReturnType<typeof getDb>
 ): Promise<void> {
+  const isMulti = factura.source_index !== null && factura.source_count !== null && factura.source_count > 1
+
+  // Registros con source_index > 0 son procesados en lote por el source_index=0.
+  // Si ya están procesados los saltamos; si siguen en cola es que el lote falló,
+  // en ese caso los procesamos individualmente como fallback.
+  if (isMulti && factura.source_index !== 0) {
+    const [row] = await sql`
+      SELECT estado FROM facturas WHERE id = ${factura.id}
+    ` as Array<{ estado: string }>
+    if (row?.estado === 'procesada' || row?.estado === 'pendiente_revision') return
+    // Si sigue en cola, continúa con extracción individual (fallback)
+  }
+
   try {
     const obj = await env.R2.get(factura.imagen_path)
     if (!obj) throw new Error('Imagen no encontrada en R2')
@@ -38,23 +51,35 @@ async function processOne(
     const imageBytes = await obj.arrayBuffer()
     const mimeType = obj.httpMetadata?.contentType ?? 'image/jpeg'
 
-    let extraction: ExtractionResult
-
-    if (factura.source_index !== null && factura.source_count !== null && factura.source_count > 1) {
-      // Multi-factura: extraer TODAS y tomar la del índice correspondiente
+    if (isMulti && factura.source_index === 0) {
+      // Una sola llamada Gemini para TODO el lote
       const multi = await extractMultipleInvoices(
         imageBytes,
         mimeType,
-        factura.source_count,
+        factura.source_count!,
         env.GEMINI_API_KEY,
         env.GEMINI_MODEL
       )
-      extraction = multi.invoices[factura.source_index] ?? multi.invoices[0]
-    } else {
-      extraction = await extractInvoice(imageBytes, mimeType, env.GEMINI_API_KEY, env.GEMINI_MODEL)
-    }
 
-    await applyExtraction(factura.id, extraction, sql)
+      // Recuperar los IDs de todos los registros hermanos (mismo imagen_path, en orden)
+      const siblings = await sql`
+        SELECT id, source_index
+        FROM facturas
+        WHERE imagen_path = ${factura.imagen_path}
+          AND source_index IS NOT NULL
+        ORDER BY source_index ASC
+      ` as Array<{ id: string; source_index: number }>
+
+      // Aplicar cada extracción al registro que le corresponde
+      await Promise.all(siblings.map(sib => {
+        const extraction = multi.invoices[sib.source_index] ?? multi.invoices[0]
+        return applyExtraction(sib.id, extraction, sql)
+      }))
+    } else {
+      // Factura individual (no multi) o fallback
+      const extraction = await extractInvoice(imageBytes, mimeType, env.GEMINI_API_KEY, env.GEMINI_MODEL)
+      await applyExtraction(factura.id, extraction, sql)
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('processOne fallo:', factura.id, msg)
@@ -63,9 +88,7 @@ async function processOne(
 
     if (isTransient) {
       await sql`
-        UPDATE facturas SET
-          estado       = 'en_cola',
-          ultimo_error = ${msg}
+        UPDATE facturas SET estado = 'en_cola', ultimo_error = ${msg}
         WHERE id = ${factura.id}
       `
     } else {

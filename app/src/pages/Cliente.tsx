@@ -299,7 +299,14 @@ export default function Cliente() {
                         <div style={{ fontSize: 11, color: 'var(--red-700)', marginTop: 3, maxWidth: 200 }}>{friendlyError(f.ultimo_error)}</div>
                       )}
                     </td>
-                    <td><span className="mono" style={{ fontSize: 12 }}>{f.rnc_emisor ?? <span className="muted-cell">—</span>}</span></td>
+                    <td>
+                      <span className="mono" style={{ fontSize: 12 }}>{f.rnc_emisor ?? <span className="muted-cell">—</span>}</span>
+                      {f.source_count != null && f.source_count > 1 && (
+                        <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2 }}>
+                          #{(f.source_index ?? 0) + 1} de {f.source_count} en archivo
+                        </div>
+                      )}
+                    </td>
                     <td><span className="mono" style={{ fontSize: 12 }}>{f.ncf ?? <span className="muted-cell">—</span>}</span></td>
                     <td className="mono" style={{ fontSize: 12 }}>{f.fecha_emision?.slice(0, 10) ?? <span className="muted-cell">—</span>}</td>
                     <td className="num cell-strong">{fmtMoney(f.monto_total_cent)}</td>
