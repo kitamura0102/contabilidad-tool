@@ -230,7 +230,7 @@ export default function Cliente() {
 
         <div className="tabs">
           {(['compra', 'venta'] as const).map(t => (
-            <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => { setTab(t); setSelected(new Set()) }}>
+            <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => { setTab(t); setSelected(new Set()); setFacturas([]); setLoading(true) }}>
               {t === 'compra' ? 'Compras (606)' : 'Ventas (607)'}
               <span className="tab-count">{facturas.filter(f => f.tipo === t).length}</span>
             </button>
