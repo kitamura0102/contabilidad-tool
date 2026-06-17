@@ -20,6 +20,16 @@ type ClaimedFactura = {
 export async function processQueue(env: Env): Promise<void> {
   const sql = getDb(env.DATABASE_URL)
 
+  // Liberar facturas atascadas en 'procesando' por más de 10 minutos.
+  // Se usa creado_en como proxy ya que no hay updated_at; funciona porque un
+  // registro que lleva >10 min en procesando definitivamente está atascado.
+  await sql`
+    UPDATE facturas
+    SET estado = 'en_cola', ultimo_error = 'Timeout: atascada en procesando'
+    WHERE estado = 'procesando'
+      AND creado_en < NOW() - INTERVAL '10 minutes'
+  `
+
   const claimed = await sql`
     UPDATE facturas
     SET estado = 'procesando'
