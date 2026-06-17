@@ -69,7 +69,7 @@ export default function Bandeja() {
   }), [facturas])
 
   const selectedFacturas = filtered.filter(f => selected.has(f.id))
-  const canReintentar = selectedFacturas.filter(f => f.estado === 'error_extraccion').length
+  const canReintentar = selectedFacturas.length
   const canRevisar = selectedFacturas.filter(f => f.estado === 'pendiente_revision').length
 
   const allVisibleSelected = filtered.length > 0 && filtered.every(f => selected.has(f.id))
@@ -113,7 +113,7 @@ export default function Bandeja() {
     )
   }
 
-  const doReintentar = () => runBulk('reintentar', selectedFacturas.filter(f => f.estado === 'error_extraccion').map(f => f.id), reintentarFactura, 'reencoladas')
+  const doReintentar = () => runBulk('reintentar', selectedFacturas.map(f => f.id), reintentarFactura, 'reencoladas')
   const doRevisar = () => runBulk('revisar', selectedFacturas.filter(f => f.estado === 'pendiente_revision').map(f => f.id), marcarRevisada, 'marcadas como revisadas')
   const doDelete = () => { setConfirmDelete(false); runBulk('delete', selectedFacturas.map(f => f.id), deleteFactura, 'borradas') }
 

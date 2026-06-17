@@ -4,7 +4,7 @@ export type BulkAction = 'reintentar' | 'revisar' | 'delete'
 
 interface BulkBarProps {
   count: number
-  canReintentar: number   // # of selected in error_extraccion
+  canReintentar: number   // # of selected facturas
   canRevisar: number       // # of selected in pendiente_revision
   busy: BulkAction | null
   progress: { done: number; total: number } | null
@@ -42,7 +42,7 @@ export default function BulkBar({
       <button
         className="bulk-btn" disabled={canReintentar === 0 || busy !== null}
         onClick={onReintentar}
-        title={canReintentar === 0 ? 'Ninguna seleccionada está en error' : `Reintentar ${canReintentar}`}
+        title={`Reencolar ${canReintentar} para reprocesar con IA`}
       >
         <RotateCcw size={14} />Reintentar{canReintentar > 0 && canReintentar !== count ? ` (${canReintentar})` : ''}
       </button>
