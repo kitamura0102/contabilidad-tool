@@ -1,10 +1,21 @@
 import { getDb } from '../lib/db'
-import { extractInvoice, extractMultipleInvoices } from '../lib/gemini'
+import { extractInvoicesFromPage } from '../lib/gemini'
 import { extractionToColumns } from '../lib/extraction'
+import { getPageCount, extractPage } from '../lib/pdf'
 import type { Env, ExtractionResult } from '../types'
 
 const MAX_PER_RUN = 15  // Gemini free tier: 15 RPM
 const MAX_RETRIES = 3
+
+type ClaimedFactura = {
+  id: string
+  cliente_id: string
+  imagen_path: string
+  tipo: string | null
+  intentos: number
+  source_index: number | null
+  source_count: number | null
+}
 
 export async function processQueue(env: Env): Promise<void> {
   const sql = getDb(env.DATABASE_URL)
@@ -19,8 +30,8 @@ export async function processQueue(env: Env): Promise<void> {
       LIMIT ${MAX_PER_RUN}
       FOR UPDATE SKIP LOCKED
     )
-    RETURNING id, imagen_path, intentos, source_index, source_count
-  ` as Array<{ id: string; imagen_path: string; intentos: number; source_index: number | null; source_count: number | null }>
+    RETURNING id, cliente_id, imagen_path, tipo, intentos, source_index, source_count
+  ` as ClaimedFactura[]
 
   if (!claimed.length) return
 
@@ -32,58 +43,53 @@ export async function processQueue(env: Env): Promise<void> {
 }
 
 async function processOne(
-  factura: { id: string; imagen_path: string; intentos: number; source_index: number | null; source_count: number | null },
+  factura: ClaimedFactura,
   env: Env,
   sql: ReturnType<typeof getDb>
 ): Promise<void> {
-  const isMulti = factura.source_index !== null && factura.source_count !== null && factura.source_count > 1
-
-  // Registros con source_index > 0 son procesados en lote por el source_index=0.
-  // Si ya están procesados los saltamos; si siguen en cola es que el lote falló,
-  // en ese caso los procesamos individualmente como fallback.
-  if (isMulti && factura.source_index !== 0) {
-    const [row] = await sql`
-      SELECT estado FROM facturas WHERE id = ${factura.id}
-    ` as Array<{ estado: string }>
-    if (row?.estado === 'procesada' || row?.estado === 'pendiente_revision') return
-    // Si sigue en cola, continúa con extracción individual (fallback)
-  }
-
   try {
     const obj = await env.R2.get(factura.imagen_path)
     if (!obj) throw new Error('Imagen no encontrada en R2')
 
-    const imageBytes = await obj.arrayBuffer()
-    const mimeType = obj.httpMetadata?.contentType ?? 'image/jpeg'
+    let bytes = await obj.arrayBuffer()
+    let mime = obj.httpMetadata?.contentType ?? 'image/jpeg'
+    // displayKey: el objeto R2 que se mostrará para esta factura (la página suelta).
+    let displayKey = factura.imagen_path
 
-    if (isMulti && factura.source_index === 0) {
-      // Una sola llamada Gemini para TODO el lote
-      const multi = await extractMultipleInvoices(
-        imageBytes,
-        mimeType,
-        factura.source_count!,
-        env.GEMINI_API_KEY,
-        env.GEMINI_MODEL
-      )
+    // PDF multipágina: extraer SOLO la página que le toca a este registro.
+    // (Si el objeto ya es una página suelta —reintento— se usa tal cual.)
+    if (factura.source_count && factura.source_count > 1 && factura.source_index != null) {
+      const pageCount = await getPageCount(bytes)
+      if (pageCount > 1 && factura.source_index < pageCount) {
+        const pageBytes = await extractPage(bytes, factura.source_index)
+        const pageKey = `${factura.imagen_path}_p${factura.source_index}.pdf`
+        await env.R2.put(pageKey, pageBytes, { httpMetadata: { contentType: 'application/pdf' } })
+        bytes = pageBytes.slice().buffer
+        mime = 'application/pdf'
+        displayKey = pageKey
+      }
+    }
 
-      // Recuperar los IDs de todos los registros hermanos (mismo imagen_path, en orden)
-      const siblings = await sql`
-        SELECT id, source_index
-        FROM facturas
-        WHERE imagen_path = ${factura.imagen_path}
-          AND source_index IS NOT NULL
-        ORDER BY source_index ASC
-      ` as Array<{ id: string; source_index: number }>
+    const invoices = await extractInvoicesFromPage(bytes, mime, env.GEMINI_API_KEY, env.GEMINI_MODEL)
+    if (invoices.length === 0) {
+      throw new Error('No se detectó ninguna factura legible en esta página/foto')
+    }
 
-      // Aplicar cada extracción al registro que le corresponde
-      await Promise.all(siblings.map(sib => {
-        const extraction = multi.invoices[sib.source_index] ?? multi.invoices[0]
-        return applyExtraction(sib.id, extraction, sql)
-      }))
-    } else {
-      // Factura individual (no multi) o fallback
-      const extraction = await extractInvoice(imageBytes, mimeType, env.GEMINI_API_KEY, env.GEMINI_MODEL)
-      await applyExtraction(factura.id, extraction, sql)
+    // La primera factura de la página va a este registro.
+    await applyExtraction(factura.id, invoices[0], sql)
+    if (displayKey !== factura.imagen_path) {
+      await sql`UPDATE facturas SET imagen_path = ${displayKey} WHERE id = ${factura.id}`
+    }
+
+    // Si la página traía más de una factura, se crean registros adicionales,
+    // todos apuntando a la misma imagen de la página.
+    for (let i = 1; i < invoices.length; i++) {
+      const [row] = await sql`
+        INSERT INTO facturas (cliente_id, imagen_path, tipo, estado)
+        VALUES (${factura.cliente_id}::uuid, ${displayKey}, ${factura.tipo}, 'procesando')
+        RETURNING id
+      ` as Array<{ id: string }>
+      await applyExtraction(row.id, invoices[i], sql)
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

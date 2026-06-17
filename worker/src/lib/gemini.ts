@@ -306,3 +306,84 @@ function emptyExtraction(): ExtractionResult {
     tipo_bs:         { value: '2', confidence: 'medium' },
   }
 }
+
+// ── Extracción por página / foto (documentos desordenados) ─────────────────────
+
+// Una página escaneada o una foto puede traer 1, 2 o 3 facturas distintas,
+// rotadas, tickets o facturas digitales. Este prompt las separa y extrae cada una.
+const PAGE_PROMPT = `Esta imagen es UNA página escaneada o foto que puede contener 1, 2 o 3
+facturas/comprobantes fiscales dominicanos distintos (a veces lado a lado o uno
+arriba y otro abajo). Pueden estar rotados, ser tickets de caja o facturas digitales.
+
+Identifica CADA comprobante fiscal distinto y extrae sus datos. Devuelve SOLO un
+JSON válido sin markdown, con un objeto por cada factura:
+{
+  "invoices": [
+    {
+      "rnc_emisor":      { "value": "101234567", "confidence": "high|medium|low" },
+      "ncf":             { "value": "B0100000001 o E310000000001", "confidence": "..." },
+      "ncf_modificado":  { "value": null, "confidence": "low" },
+      "tipo_id":         { "value": "1", "confidence": "high" },
+      "fecha_emision":   { "value": "YYYY-MM-DD", "confidence": "..." },
+      "monto_total":     { "value": "5000.00", "confidence": "..." },
+      "monto_itbis":     { "value": "762.71", "confidence": "..." },
+      "tasa_itbis":      { "value": "16|18|null", "confidence": "..." },
+      "monto_servicios": { "value": null, "confidence": "low" },
+      "monto_bienes":    { "value": null, "confidence": "low" },
+      "isc":             { "value": null, "confidence": "low" },
+      "otros_impuestos": { "value": null, "confidence": "low" },
+      "propina":         { "value": null, "confidence": "low" },
+      "tipo_ingreso":    { "value": "1", "confidence": "high" },
+      "forma_pago":      { "value": null, "confidence": "low" },
+      "tipo_bs":         { "value": "2", "confidence": "medium" }
+    }
+  ]
+}
+Reglas:
+- Un objeto por CADA comprobante con NCF distinto que veas en la página.
+- Si ves el MISMO NCF dos veces (ej. un ticket de caja y su versión digital de la
+  misma compra), inclúyelo UNA sola vez.
+- IGNORA lo que no sea comprobante fiscal: códigos QR sueltos, vouchers de tarjeta,
+  papeles en blanco, sellos de "PAGADO".
+- Las facturas rotadas también cuéntalas; léelas en su orientación correcta.
+- rnc_emisor: solo dígitos sin guiones ni espacios.
+- tipo_id: 1 si RNC (9 dígitos), 2 si cédula (11 dígitos), 3 si pasaporte.
+- ncf: formato B+10 dígitos o E+12 dígitos. Si no hay NCF legible, value null.
+- fecha_emision: formato YYYY-MM-DD.
+- monto_total: total final con ITBIS incluido, número con punto decimal sin comas de miles.
+- monto_itbis: si dice exento o ITBIS 0, "0.00".
+- tasa_itbis: "16", "18" o null.
+- tipo_bs: "1"=bienes, "2"=servicios, "3"=mixto. Default "2".
+- Si un campo no es legible: value null, confidence "low".
+- Si la página NO tiene ningún comprobante fiscal, responde { "invoices": [] }.
+Solo JSON, sin texto adicional.`
+
+// Normaliza un objeto crudo del modelo a un ExtractionResult completo.
+function normalizeExtraction(raw: Record<string, unknown>): ExtractionResult {
+  const base = emptyExtraction() as unknown as Record<string, { value: string | null; confidence: 'high' | 'medium' | 'low' }>
+  for (const key of Object.keys(base)) {
+    const field = raw?.[key] as { value?: unknown; confidence?: unknown } | undefined
+    if (field && typeof field === 'object' && 'value' in field) {
+      const value = field.value == null ? null : String(field.value)
+      const confidence = field.confidence === 'high' || field.confidence === 'medium' ? field.confidence : 'low'
+      base[key] = { value, confidence }
+    }
+  }
+  return base as unknown as ExtractionResult
+}
+
+// Extrae todas las facturas presentes en una sola página/foto.
+export async function extractInvoicesFromPage(
+  imageBytes: ArrayBuffer,
+  mimeType: string,
+  apiKey: string,
+  model: string
+): Promise<ExtractionResult[]> {
+  const text = await callGemini(PAGE_PROMPT, imageBytes, mimeType, apiKey, model)
+  const parsed = JSON.parse(text) as { invoices?: Array<Record<string, unknown>> }
+  const arr = Array.isArray(parsed.invoices) ? parsed.invoices : []
+  return arr
+    .map(normalizeExtraction)
+    // Descarta entradas sin ninguna señal de factura real.
+    .filter(e => e.ncf.value || e.monto_total.value || e.rnc_emisor.value)
+}

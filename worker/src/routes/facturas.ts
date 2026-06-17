@@ -1,12 +1,17 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { getDb, normalizeRnc, toCents } from '../lib/db'
+import { getDb, normalizeRnc } from '../lib/db'
 import { analyzeDocument, detectInvoiceCount } from '../lib/gemini'
 import { extractionToColumns } from '../lib/extraction'
+import { getPageCount } from '../lib/pdf'
 import { processQueue } from '../cron/queue'
 import { requireAuth } from '../middleware/auth'
 import type { Env, Variables } from '../types'
+
+// PDFs con más páginas que esto se tratan como lotes desordenados (foto a foto),
+// no como un posible estado de cuenta AZUL.
+const AZUL_MAX_PAGES = 6
 
 export const facturas = new Hono<{ Bindings: Env; Variables: Variables }>()
 
@@ -60,14 +65,13 @@ facturas.post('/', async (c) => {
   const file = formData.get('file') as File | null
   const clienteId = formData.get('cliente_id') as string | null
   const tipo = (formData.get('tipo') as string | null) ?? 'compra'
-  // force_count: el frontend puede indicar cuántas facturas hay (después de que el usuario confirme)
-  const forceCount = formData.get('force_count') ? parseInt(formData.get('force_count') as string, 10) : null
 
   if (!file || !clienteId) {
     return c.json({ error: 'Faltan file y cliente_id' }, 400)
   }
 
-  const ext = file.type === 'application/pdf' ? 'pdf' : 'webp'
+  const isPdf = file.type === 'application/pdf'
+  const ext = isPdf ? 'pdf' : 'webp'
   const key = `${userId}/${clienteId}/${Date.now()}.${ext}`
 
   await c.env.R2.put(key, file.stream(), {
@@ -80,60 +84,61 @@ facturas.post('/', async (c) => {
   // quedan juntas y se ordenan por source_index (#1, #2, …) en vez de al revés.
   const batchTime = new Date().toISOString()
 
-  // Si el usuario forzó el conteo, saltamos el análisis y creamos stubs genéricos.
-  if (forceCount) {
-    for (let i = 0; i < forceCount; i++) {
-      createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, i, forceCount, batchTime))
-    }
-    // Arranca el procesamiento ya, sin esperar al cron.
-    c.executionCtx.waitUntil(processQueue(c.env))
-    return c.json({ facturas: createdRows, detected_count: forceCount, detection_source: 'forced' }, 201)
-  }
-
-  // Analizar el archivo: detecta AZUL (y extrae sus filas) o cuenta facturas genéricas.
   const fileBytes = await file.arrayBuffer()
-  const analysis = await analyzeDocument(fileBytes, file.type, c.env.GEMINI_API_KEY, c.env.GEMINI_MODEL)
 
-  if (analysis.kind === 'azul') {
-    // Cada fila de "Comprobante fiscal por cargos" se crea ya procesada.
-    const total = analysis.invoices.length
-    for (let i = 0; i < total; i++) {
-      const cols = extractionToColumns(analysis.invoices[i])
-      const rows = await sql.transaction([
-        sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
-        sql`
-          INSERT INTO facturas (
-            cliente_id, imagen_path, tipo, estado,
-            rnc_emisor, tipo_id, ncf, ncf_modificado, fecha_emision,
-            monto_total_cent, monto_itbis_cent, tasa_itbis,
-            monto_servicios_cent, monto_bienes_cent, isc_cent, otros_impuestos_cent, propina_cent,
-            tipo_ingreso, forma_pago, tipo_bs,
-            confidence_json, source_index, source_count, creado_en
-          )
-          VALUES (
-            ${clienteId}::uuid, ${key}, ${tipo}, ${cols.estado},
-            ${cols.rnc}, ${cols.tipoId}, ${cols.ncf}, ${cols.ncfModificado}, ${cols.fechaEmision}::date,
-            ${cols.montoTotal}, ${cols.montoItbis}, ${cols.tasaItbis},
-            ${cols.montoServicios}, ${cols.montoBienes}, ${cols.isc}, ${cols.otrosImpuestos}, ${cols.propina},
-            ${cols.tipoIngreso}, ${cols.formaPago}, ${cols.tipoBs},
-            ${JSON.stringify(analysis.invoices[i])}::jsonb,
-            ${total > 1 ? i : null}, ${total > 1 ? total : null}, ${batchTime}::timestamptz
-          )
-          RETURNING *
-        `,
-      ] as Parameters<typeof sql.transaction>[0])
-      createdRows.push(((rows as unknown[][])[1] as unknown[])[0])
+  if (isPdf) {
+    const pageCount = await getPageCount(fileBytes)
+
+    // Los PDFs cortos pueden ser un estado de cuenta AZUL → detección dedicada.
+    if (pageCount <= AZUL_MAX_PAGES) {
+      const analysis = await analyzeDocument(fileBytes, file.type, c.env.GEMINI_API_KEY, c.env.GEMINI_MODEL)
+      if (analysis.kind === 'azul') {
+        // Cada fila de "Comprobante fiscal por cargos" se crea ya procesada.
+        const total = analysis.invoices.length
+        for (let i = 0; i < total; i++) {
+          const cols = extractionToColumns(analysis.invoices[i])
+          const rows = await sql.transaction([
+            sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
+            sql`
+              INSERT INTO facturas (
+                cliente_id, imagen_path, tipo, estado,
+                rnc_emisor, tipo_id, ncf, ncf_modificado, fecha_emision,
+                monto_total_cent, monto_itbis_cent, tasa_itbis,
+                monto_servicios_cent, monto_bienes_cent, isc_cent, otros_impuestos_cent, propina_cent,
+                tipo_ingreso, forma_pago, tipo_bs,
+                confidence_json, source_index, source_count, creado_en
+              )
+              VALUES (
+                ${clienteId}::uuid, ${key}, ${tipo}, ${cols.estado},
+                ${cols.rnc}, ${cols.tipoId}, ${cols.ncf}, ${cols.ncfModificado}, ${cols.fechaEmision}::date,
+                ${cols.montoTotal}, ${cols.montoItbis}, ${cols.tasaItbis},
+                ${cols.montoServicios}, ${cols.montoBienes}, ${cols.isc}, ${cols.otrosImpuestos}, ${cols.propina},
+                ${cols.tipoIngreso}, ${cols.formaPago}, ${cols.tipoBs},
+                ${JSON.stringify(analysis.invoices[i])}::jsonb,
+                ${total > 1 ? i : null}, ${total > 1 ? total : null}, ${batchTime}::timestamptz
+              )
+              RETURNING *
+            `,
+          ] as Parameters<typeof sql.transaction>[0])
+          createdRows.push(((rows as unknown[][])[1] as unknown[])[0])
+        }
+        return c.json({ facturas: createdRows, detected_count: total, detection_source: 'auto', documento: 'azul' }, 201)
+      }
     }
-    return c.json({ facturas: createdRows, detected_count: total, detection_source: 'auto', documento: 'azul' }, 201)
+
+    // PDF normal (corto no-AZUL o largo y desordenado): una página = un registro.
+    // La cola extrae cada página por separado y detecta 1-3 facturas en cada una.
+    for (let i = 0; i < pageCount; i++) {
+      createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, i, pageCount, batchTime))
+    }
+  } else {
+    // Imagen / foto: un solo registro; la cola detecta 1-3 facturas dentro.
+    createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, 0, 1, batchTime))
   }
 
-  // Genérico: crear N stubs en cola; la extracción ocurre en la cola.
-  for (let i = 0; i < analysis.count; i++) {
-    createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, i, analysis.count, batchTime))
-  }
   // Arranca el procesamiento ya, sin esperar al cron (que es la red de seguridad).
   c.executionCtx.waitUntil(processQueue(c.env))
-  return c.json({ facturas: createdRows, detected_count: analysis.count, detection_source: analysis.source }, 201)
+  return c.json({ facturas: createdRows, detected_count: createdRows.length, detection_source: 'auto' }, 201)
 })
 
 // POST /api/facturas/detect — solo detecta el conteo sin crear registros
