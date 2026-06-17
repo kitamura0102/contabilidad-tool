@@ -42,3 +42,19 @@ export async function extractPage(bytes: ArrayBuffer, index: number): Promise<Ui
   out.addPage(page)
   return out.save()
 }
+
+// Parte un PDF en N PDFs de una sola página. Carga el PDF de origen UNA sola vez
+// (a diferencia de llamar extractPage en bucle, que lo recarga por cada página y
+// dispara el límite de CPU). Devuelve un buffer por página, en orden.
+export async function splitPdfPages(bytes: ArrayBuffer): Promise<Uint8Array[]> {
+  const src = await PDFDocument.load(bytes, { ignoreEncryption: true })
+  const total = src.getPageCount()
+  const pages: Uint8Array[] = []
+  for (let i = 0; i < total; i++) {
+    const out = await PDFDocument.create()
+    const [page] = await out.copyPages(src, [i])
+    out.addPage(page)
+    pages.push(await out.save())
+  }
+  return pages
+}

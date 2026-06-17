@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getDb, normalizeRnc } from '../lib/db'
 import { analyzeDocument, detectInvoiceCount } from '../lib/gemini'
 import { extractionToColumns } from '../lib/extraction'
-import { getPageCount, looksLikeAzul } from '../lib/pdf'
+import { getPageCount, looksLikeAzul, splitPdfPages } from '../lib/pdf'
 import { processQueue } from '../cron/queue'
 import { requireAuth } from '../middleware/auth'
 import type { Env, Variables } from '../types'
@@ -124,9 +124,18 @@ facturas.post('/', async (c) => {
     }
 
     // PDF normal (corto no-AZUL o largo y desordenado): una página = un registro.
-    // La cola extrae cada página por separado y detecta 1-3 facturas en cada una.
-    for (let i = 0; i < pageCount; i++) {
-      createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, i, pageCount, batchTime))
+    // Se parte el PDF UNA sola vez aquí y cada página se guarda como su propio
+    // objeto en R2. Así la cola solo descarga una hoja y la manda a Claude, sin
+    // tocar pdf-lib (que cargaba el PDF entero por página y reventaba el CPU).
+    if (pageCount > 1) {
+      const pages = await splitPdfPages(fileBytes)
+      for (let i = 0; i < pages.length; i++) {
+        const pageKey = `${key}_p${i}.pdf`
+        await c.env.R2.put(pageKey, pages[i], { httpMetadata: { contentType: 'application/pdf' } })
+        createdRows.push(await insertStub(sql, userId, clienteId, pageKey, tipo, i, pages.length, batchTime))
+      }
+    } else {
+      createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, 0, 1, batchTime))
     }
   } else {
     // Imagen / foto: un solo registro; la cola detecta 1-3 facturas dentro.
