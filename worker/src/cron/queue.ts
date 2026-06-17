@@ -93,7 +93,10 @@ async function processOne(
     const msg = err instanceof Error ? err.message : String(err)
     console.error('processOne fallo:', factura.id, msg)
 
-    const isTransient = /429|RESOURCE_EXHAUSTED|quota|503|overloaded|unavailable|rate.?limit/i.test(msg)
+    // 401/403/authentication = key mal configurada (problema global, no de esta
+    // factura): se trata como transitorio para no quemar intentos ni mandar todo
+    // el lote a error_extraccion mientras se corrige la API key.
+    const isTransient = /401|403|authentication|429|RESOURCE_EXHAUSTED|quota|503|overloaded|unavailable|rate.?limit/i.test(msg)
 
     // intentos ya se incrementó al reclamar. Un error transitorio (rate limit,
     // sobrecarga) no debe consumir un intento, así que se devuelve.

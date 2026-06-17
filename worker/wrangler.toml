@@ -31,7 +31,8 @@ enabled = false
 persist = true
 head_sampling_rate = 1
 
-[secrets]
-DATABASE_URL = ""
-ANTHROPIC_API_KEY = ""
-CLERK_SECRET_KEY = ""
+# Secrets — se configuran en el Dashboard de Cloudflare o con: wrangler secret put <NAME>
+# (NO se ponen aquí; este archivo se versiona en git)
+# DATABASE_URL
+# ANTHROPIC_API_KEY
+# CLERK_SECRET_KEY
