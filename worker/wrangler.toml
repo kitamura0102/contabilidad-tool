@@ -31,7 +31,7 @@ enabled = false
 persist = true
 head_sampling_rate = 1
 
-# Secrets — set via: wrangler secret put <NAME>
-# DATABASE_URL
-# ANTHROPIC_API_KEY
-# CLERK_SECRET_KEY
+[secrets]
+DATABASE_URL = ""
+ANTHROPIC_API_KEY = ""
+CLERK_SECRET_KEY = ""
