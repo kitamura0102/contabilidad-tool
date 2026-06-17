@@ -229,7 +229,6 @@ facturas.post('/:id/reintentar', async (c) => {
         intentos     = 0,
         ultimo_error = NULL
       WHERE id = ${c.req.param('id')}
-        AND estado = 'error_extraccion'
       RETURNING id
     `,
   ] as Parameters<typeof sql.transaction>[0])
