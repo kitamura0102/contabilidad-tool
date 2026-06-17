@@ -81,7 +81,7 @@ async function processOne(
       }
     }
 
-    const invoices = await extractInvoicesFromPage(bytes, mime, env.GEMINI_API_KEY, env.GEMINI_MODEL)
+    const invoices = await extractInvoicesFromPage(bytes, mime, env.ANTHROPIC_API_KEY, 'claude-haiku-4-5')
     if (invoices.length === 0) {
       throw new Error('No se detectó ninguna factura legible en esta página/foto')
     }

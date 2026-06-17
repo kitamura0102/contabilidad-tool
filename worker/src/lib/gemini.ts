@@ -47,8 +47,6 @@ const MULTI_DETECT_PROMPT = `Cuenta cuántas facturas/recibos/comprobantes fisca
 Responde SOLO con un número entero. No incluyas texto adicional.
 Ejemplos: si hay 1 factura, responde: 1. Si hay 3 recibos, responde: 3.`
 
-// Clasifica el documento y, si es un estado de cuenta AZUL, extrae cada fila de
-// la tabla "Comprobante fiscal por cargos" como una factura independiente.
 const ANALYZE_PROMPT = `Eres un clasificador de documentos fiscales dominicanos. Revisa TODAS las páginas.
 
 REGLA PRINCIPAL — Estado de cuenta de AZUL / Servicios Digitales Popular:
@@ -127,7 +125,22 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary)
 }
 
-async function callGemini(
+function buildContentBlock(base64: string, mimeType: string): Record<string, unknown> {
+  if (mimeType === 'application/pdf') {
+    return {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: base64 },
+    }
+  }
+  const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  const mt = supported.includes(mimeType) ? mimeType : 'image/jpeg'
+  return {
+    type: 'image',
+    source: { type: 'base64', media_type: mt, data: base64 },
+  }
+}
+
+async function callClaude(
   prompt: string,
   imageBytes: ArrayBuffer,
   mimeType: string,
@@ -135,54 +148,63 @@ async function callGemini(
   model: string
 ): Promise<string> {
   const base64 = arrayBufferToBase64(imageBytes)
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mimeType, data: base64 } },
+  const contentBlock = buildContentBlock(base64, mimeType)
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
+  }
+  if (mimeType === 'application/pdf') {
+    headers['anthropic-beta'] = 'pdfs-2024-09-25'
+  }
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model,
+      max_tokens: 4096,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            contentBlock,
+            { type: 'text', text: prompt },
           ],
-        }],
-        generationConfig: {
-          temperature: 0,
-          response_mime_type: 'application/json',
         },
-      }),
-    }
-  )
+      ],
+    }),
+  })
 
   if (!response.ok) {
     const err = await response.text()
-    throw new Error(`Gemini ${response.status}: ${err}`)
+    throw new Error(`Claude ${response.status}: ${err}`)
   }
 
   const data = await response.json() as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+    content?: Array<{ type: string; text?: string }>
   }
 
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text) throw new Error('Gemini devolvió respuesta vacía')
-  return text
+  const text = data.content?.[0]?.text
+  if (!text) throw new Error('Claude devolvió respuesta vacía')
+
+  // Quitar markdown code fences si Claude los incluye
+  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
 }
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 
-// Extrae una sola factura de una imagen/PDF
 export async function extractInvoice(
   imageBytes: ArrayBuffer,
   mimeType: string,
   apiKey: string,
   model: string
 ): Promise<ExtractionResult> {
-  const text = await callGemini(SINGLE_PROMPT, imageBytes, mimeType, apiKey, model)
+  const text = await callClaude(SINGLE_PROMPT, imageBytes, mimeType, apiKey, model)
   return JSON.parse(text) as ExtractionResult
 }
 
-// Detecta cuántas facturas hay en un archivo (imagen o PDF)
 export async function detectInvoiceCount(
   imageBytes: ArrayBuffer,
   mimeType: string,
@@ -190,10 +212,8 @@ export async function detectInvoiceCount(
   model: string
 ): Promise<MultiDetectResult> {
   try {
-    const text = await callGemini(MULTI_DETECT_PROMPT, imageBytes, mimeType, apiKey, model)
-    // La respuesta puede venir como JSON "1" o como número plano
+    const text = await callClaude(MULTI_DETECT_PROMPT, imageBytes, mimeType, apiKey, model)
     let raw = text.trim()
-    // Quitar comillas si viene como JSON string
     if (raw.startsWith('"')) raw = raw.slice(1, -1)
     const count = parseInt(raw, 10)
     if (!isFinite(count) || count < 1) return { count: 1, source: 'fallback' }
@@ -203,13 +223,10 @@ export async function detectInvoiceCount(
   }
 }
 
-// Resultado del análisis de documento al subirlo.
 export type DocumentAnalysis =
   | { kind: 'azul'; invoices: ExtractionResult[] }
   | { kind: 'generic'; count: number; source: 'auto' | 'fallback' }
 
-// Construye un ExtractionResult a partir de una fila de la tabla AZUL.
-// El RNC del emisor es fijo (AZUL_RNC), no se confía en lo que devuelva el modelo.
 function azulRowToExtraction(r: { ncf?: string | null; fecha_emision?: string | null; monto_total?: string | null }): ExtractionResult {
   const low = { value: null, confidence: 'low' as const }
   return {
@@ -219,7 +236,7 @@ function azulRowToExtraction(r: { ncf?: string | null; fecha_emision?: string | 
     tipo_id:         { value: '1', confidence: 'high' },
     fecha_emision:   { value: r.fecha_emision ?? null, confidence: r.fecha_emision ? 'high' : 'low' },
     monto_total:     { value: r.monto_total ?? null, confidence: r.monto_total ? 'high' : 'low' },
-    monto_itbis:     low,   // los cargos AZUL los completa el contador
+    monto_itbis:     low,
     tasa_itbis:      low,
     monto_servicios: low,
     monto_bienes:    low,
@@ -228,12 +245,10 @@ function azulRowToExtraction(r: { ncf?: string | null; fecha_emision?: string | 
     propina:         low,
     tipo_ingreso:    { value: '1', confidence: 'high' },
     forma_pago:      low,
-    tipo_bs:         { value: '2', confidence: 'high' },  // comisiones = servicios
+    tipo_bs:         { value: '2', confidence: 'high' },
   }
 }
 
-// Analiza un archivo al subirlo: detecta si es AZUL (y extrae sus filas en la
-// misma llamada) o cuántas facturas genéricas contiene. Una sola llamada a Gemini.
 export async function analyzeDocument(
   imageBytes: ArrayBuffer,
   mimeType: string,
@@ -241,7 +256,7 @@ export async function analyzeDocument(
   model: string
 ): Promise<DocumentAnalysis> {
   try {
-    const text = await callGemini(ANALYZE_PROMPT, imageBytes, mimeType, apiKey, model)
+    const text = await callClaude(ANALYZE_PROMPT, imageBytes, mimeType, apiKey, model)
     const parsed = JSON.parse(text) as {
       tipo_documento?: string
       cantidad_facturas?: number
@@ -253,7 +268,6 @@ export async function analyzeDocument(
         .filter(r => r.ncf || r.monto_total)
         .map(azulRowToExtraction)
       if (invoices.length > 0) return { kind: 'azul', invoices }
-      // Se detectó AZUL pero sin filas legibles → tratar como genérico de 1.
       return { kind: 'generic', count: 1, source: 'fallback' }
     }
 
@@ -265,7 +279,6 @@ export async function analyzeDocument(
   }
 }
 
-// Extrae todas las facturas de un archivo multi-factura
 export async function extractMultipleInvoices(
   imageBytes: ArrayBuffer,
   mimeType: string,
@@ -273,10 +286,9 @@ export async function extractMultipleInvoices(
   apiKey: string,
   model: string
 ): Promise<MultiExtractionResult> {
-  const text = await callGemini(MULTI_EXTRACT_PROMPT(count), imageBytes, mimeType, apiKey, model)
+  const text = await callClaude(MULTI_EXTRACT_PROMPT(count), imageBytes, mimeType, apiKey, model)
   const parsed = JSON.parse(text) as MultiExtractionResult
 
-  // Garantizar que el array tenga exactamente `count` elementos
   while (parsed.invoices.length < count) {
     parsed.invoices.push(emptyExtraction())
   }
@@ -307,10 +319,8 @@ function emptyExtraction(): ExtractionResult {
   }
 }
 
-// ── Extracción por página / foto (documentos desordenados) ─────────────────────
+// ── Extracción por página / foto ───────────────────────────────────────────
 
-// Una página escaneada o una foto puede traer 1-3 facturas, o ser un estado de
-// cuenta con muchas filas fiscales. Este prompt separa y extrae cada una.
 const PAGE_PROMPT = `Esta imagen es UNA página escaneada o foto. Normalmente trae 1, 2 o 3
 facturas/comprobantes fiscales dominicanos distintos (a veces lado a lado o uno
 arriba y otro abajo). Pueden estar rotados, ser tickets de caja o facturas digitales.
@@ -365,7 +375,6 @@ Reglas:
 - Si la página NO tiene ningún comprobante fiscal, responde { "invoices": [] }.
 Solo JSON, sin texto adicional.`
 
-// Normaliza un objeto crudo del modelo a un ExtractionResult completo.
 function normalizeExtraction(raw: Record<string, unknown>): ExtractionResult {
   const base = emptyExtraction() as unknown as Record<string, { value: string | null; confidence: 'high' | 'medium' | 'low' }>
   for (const key of Object.keys(base)) {
@@ -379,18 +388,16 @@ function normalizeExtraction(raw: Record<string, unknown>): ExtractionResult {
   return base as unknown as ExtractionResult
 }
 
-// Extrae todas las facturas presentes en una sola página/foto.
 export async function extractInvoicesFromPage(
   imageBytes: ArrayBuffer,
   mimeType: string,
   apiKey: string,
   model: string
 ): Promise<ExtractionResult[]> {
-  const text = await callGemini(PAGE_PROMPT, imageBytes, mimeType, apiKey, model)
+  const text = await callClaude(PAGE_PROMPT, imageBytes, mimeType, apiKey, model)
   const parsed = JSON.parse(text) as { invoices?: Array<Record<string, unknown>> }
   const arr = Array.isArray(parsed.invoices) ? parsed.invoices : []
   return arr
     .map(normalizeExtraction)
-    // Descarta entradas sin ninguna señal de factura real.
     .filter(e => e.ncf.value || e.monto_total.value || e.rnc_emisor.value)
 }

@@ -88,7 +88,7 @@ facturas.post('/', async (c) => {
     // AZUL se detecta por CONTENIDO (es un PDF digital con texto y marcadores
     // propios), no por número de páginas. Un PDF de fotos escaneadas nunca lo es.
     if (await looksLikeAzul(fileBytes)) {
-      const analysis = await analyzeDocument(fileBytes, file.type, c.env.GEMINI_API_KEY, c.env.GEMINI_MODEL)
+      const analysis = await analyzeDocument(fileBytes, file.type, c.env.ANTHROPIC_API_KEY, 'claude-haiku-4-5')
       if (analysis.kind === 'azul') {
         // Cada fila de "Comprobante fiscal por cargos" se crea ya procesada.
         const total = analysis.invoices.length
@@ -146,7 +146,7 @@ facturas.post('/detect', async (c) => {
   if (!file) return c.json({ error: 'Falta file' }, 400)
 
   const fileBytes = await file.arrayBuffer()
-  const detected = await detectInvoiceCount(fileBytes, file.type, c.env.GEMINI_API_KEY, c.env.GEMINI_MODEL)
+  const detected = await detectInvoiceCount(fileBytes, file.type, c.env.ANTHROPIC_API_KEY, 'claude-haiku-4-5')
   return c.json(detected)
 })
 

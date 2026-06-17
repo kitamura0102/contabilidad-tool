@@ -1,7 +1,6 @@
 export type Env = {
   DATABASE_URL: string
-  GEMINI_API_KEY: string
-  GEMINI_MODEL: string
+  ANTHROPIC_API_KEY: string
   CLERK_SECRET_KEY: string
   CLERK_PUBLISHABLE_KEY: string
   R2: R2Bucket
