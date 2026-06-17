@@ -8,7 +8,7 @@ account_id = "02e177438e5000855302f7243af59a06"
 [vars]
 CLERK_PUBLISHABLE_KEY = "pk_test_bWFueS1zYXdmbHktODMuY2xlcmsuYWNjb3VudHMuZGV2JA"
 R2_PUBLIC_URL = "https://02e177438e5000855302f7243af59a06.r2.cloudflarestorage.com/cifra-facturas"
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.0-flash"
 
 [[r2_buckets]]
 binding = "R2"
