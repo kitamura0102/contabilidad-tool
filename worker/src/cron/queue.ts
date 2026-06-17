@@ -1,5 +1,6 @@
-import { getDb, normalizeRnc, toCents } from '../lib/db'
+import { getDb } from '../lib/db'
 import { extractInvoice, extractMultipleInvoices } from '../lib/gemini'
+import { extractionToColumns } from '../lib/extraction'
 import type { Env, ExtractionResult } from '../types'
 
 const MAX_PER_RUN = 15  // Gemini free tier: 15 RPM
@@ -23,7 +24,11 @@ export async function processQueue(env: Env): Promise<void> {
 
   if (!claimed.length) return
 
-  await Promise.all(claimed.map(f => processOne(f, env, sql)))
+  // Secuencial: una factura a la vez. Evita saturar el rate limit de Gemini
+  // (que provoca 429 y reintentos) y hace el procesamiento más predecible.
+  for (const f of claimed) {
+    await processOne(f, env, sql)
+  }
 }
 
 async function processOne(
@@ -109,53 +114,30 @@ async function applyExtraction(
   e: ExtractionResult,
   sql: ReturnType<typeof getDb>
 ): Promise<void> {
-  const rnc = e.rnc_emisor.value ? normalizeRnc(e.rnc_emisor.value) : null
-  const tipoId = e.tipo_id.value ? parseInt(e.tipo_id.value) : autoTipoId(rnc)
-
-  const toC = (v: string | null) => (v ? Number(toCents(v)) : null)
-
-  const montoTotal    = toC(e.monto_total.value)
-  const montoItbis    = toC(e.monto_itbis.value)
-  const tasaItbis     = e.tasa_itbis.value ? parseInt(e.tasa_itbis.value) : null
-  const montoServ     = toC(e.monto_servicios.value)
-  const montoBienes   = toC(e.monto_bienes.value)
-  const isc           = toC(e.isc.value)
-  const otrosImp      = toC(e.otros_impuestos.value)
-  const propina       = toC(e.propina.value)
-
-  const hasBadConfidence = [e.rnc_emisor, e.ncf, e.monto_total].some(f => f.confidence === 'low')
-  const nuevoEstado = hasBadConfidence ? 'pendiente_revision' : 'procesada'
+  const cols = extractionToColumns(e)
 
   await sql`
     UPDATE facturas SET
-      rnc_emisor               = ${rnc},
-      tipo_id                  = ${tipoId},
-      ncf                      = ${e.ncf.value},
-      ncf_modificado           = ${e.ncf_modificado.value},
-      fecha_emision            = ${e.fecha_emision.value}::date,
-      monto_total_cent         = ${montoTotal},
-      monto_itbis_cent         = ${montoItbis},
-      tasa_itbis               = ${tasaItbis},
-      monto_servicios_cent     = ${montoServ},
-      monto_bienes_cent        = ${montoBienes},
-      isc_cent                 = ${isc},
-      otros_impuestos_cent     = ${otrosImp},
-      propina_cent             = ${propina},
-      tipo_ingreso             = ${e.tipo_ingreso.value ?? '1'},
-      forma_pago               = ${e.forma_pago.value},
-      tipo_bs                  = ${e.tipo_bs.value ?? '2'},
+      rnc_emisor               = ${cols.rnc},
+      tipo_id                  = ${cols.tipoId},
+      ncf                      = ${cols.ncf},
+      ncf_modificado           = ${cols.ncfModificado},
+      fecha_emision            = ${cols.fechaEmision}::date,
+      monto_total_cent         = ${cols.montoTotal},
+      monto_itbis_cent         = ${cols.montoItbis},
+      tasa_itbis               = ${cols.tasaItbis},
+      monto_servicios_cent     = ${cols.montoServicios},
+      monto_bienes_cent        = ${cols.montoBienes},
+      isc_cent                 = ${cols.isc},
+      otros_impuestos_cent     = ${cols.otrosImpuestos},
+      propina_cent             = ${cols.propina},
+      tipo_ingreso             = ${cols.tipoIngreso},
+      forma_pago               = ${cols.formaPago},
+      tipo_bs                  = ${cols.tipoBs},
       confidence_json          = ${JSON.stringify(e)}::jsonb,
-      estado                   = ${nuevoEstado},
+      estado                   = ${cols.estado},
       intentos                 = intentos + 1,
       ultimo_error             = NULL
     WHERE id = ${id}
   `
-}
-
-function autoTipoId(rnc: string | null): number | null {
-  if (!rnc) return null
-  const digits = rnc.replace(/\D/g, '')
-  if (digits.length === 9) return 1   // RNC
-  if (digits.length === 11) return 2  // Cédula
-  return 3                            // Pasaporte / otro
 }

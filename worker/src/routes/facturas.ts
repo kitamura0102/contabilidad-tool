@@ -2,7 +2,9 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { getDb, normalizeRnc, toCents } from '../lib/db'
-import { detectInvoiceCount } from '../lib/gemini'
+import { analyzeDocument, detectInvoiceCount } from '../lib/gemini'
+import { extractionToColumns } from '../lib/extraction'
+import { processQueue } from '../cron/queue'
 import { requireAuth } from '../middleware/auth'
 import type { Env, Variables } from '../types'
 
@@ -72,52 +74,63 @@ facturas.post('/', async (c) => {
     httpMetadata: { contentType: file.type },
   })
 
-  // Detectar cuántas facturas hay en el archivo
-  let invoiceCount = forceCount ?? 1
-  let detectionSource: 'forced' | 'auto' | 'fallback' = 'auto'
-
-  if (forceCount) {
-    detectionSource = 'forced'
-    invoiceCount = forceCount
-  } else {
-    const fileBytes = await file.arrayBuffer()
-    const detected = await detectInvoiceCount(fileBytes, file.type, c.env.GEMINI_API_KEY, c.env.GEMINI_MODEL)
-    invoiceCount = detected.count
-    detectionSource = detected.source
-  }
-
   const sql = getDb(c.env.DATABASE_URL)
-
-  // Crear N registros (uno por factura detectada)
   const createdRows: unknown[] = []
-  for (let i = 0; i < invoiceCount; i++) {
-    const rows = await sql.transaction([
-      sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
-      sql`
-        INSERT INTO facturas (cliente_id, imagen_path, tipo, source_index, source_count)
-        VALUES (
-          ${clienteId}::uuid,
-          ${key},
-          ${tipo},
-          ${invoiceCount > 1 ? i : null},
-          ${invoiceCount > 1 ? invoiceCount : null}
-        )
-        RETURNING *
-      `,
-    ] as Parameters<typeof sql.transaction>[0])
-    createdRows.push(((rows as unknown[][])[1] as unknown[])[0])
+
+  // Si el usuario forzó el conteo, saltamos el análisis y creamos stubs genéricos.
+  if (forceCount) {
+    for (let i = 0; i < forceCount; i++) {
+      createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, i, forceCount))
+    }
+    // Arranca el procesamiento ya, sin esperar al cron.
+    c.executionCtx.waitUntil(processQueue(c.env))
+    return c.json({ facturas: createdRows, detected_count: forceCount, detection_source: 'forced' }, 201)
   }
 
-  // Detección de duplicados para cada factura creada
-  // (Se hace después de la extracción, pero alertamos desde el inicio si hay NCF repetido)
-  // Aquí solo buscamos duplicados por NCF si el archivo ya fue procesado antes con mismo nombre
-  // La detección completa ocurre al procesar la cola.
+  // Analizar el archivo: detecta AZUL (y extrae sus filas) o cuenta facturas genéricas.
+  const fileBytes = await file.arrayBuffer()
+  const analysis = await analyzeDocument(fileBytes, file.type, c.env.GEMINI_API_KEY, c.env.GEMINI_MODEL)
 
-  return c.json({
-    facturas: createdRows,
-    detected_count: invoiceCount,
-    detection_source: detectionSource,
-  }, 201)
+  if (analysis.kind === 'azul') {
+    // Cada fila de "Comprobante fiscal por cargos" se crea ya procesada.
+    const total = analysis.invoices.length
+    for (let i = 0; i < total; i++) {
+      const cols = extractionToColumns(analysis.invoices[i])
+      const rows = await sql.transaction([
+        sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
+        sql`
+          INSERT INTO facturas (
+            cliente_id, imagen_path, tipo, estado,
+            rnc_emisor, tipo_id, ncf, ncf_modificado, fecha_emision,
+            monto_total_cent, monto_itbis_cent, tasa_itbis,
+            monto_servicios_cent, monto_bienes_cent, isc_cent, otros_impuestos_cent, propina_cent,
+            tipo_ingreso, forma_pago, tipo_bs,
+            confidence_json, source_index, source_count
+          )
+          VALUES (
+            ${clienteId}::uuid, ${key}, ${tipo}, ${cols.estado},
+            ${cols.rnc}, ${cols.tipoId}, ${cols.ncf}, ${cols.ncfModificado}, ${cols.fechaEmision}::date,
+            ${cols.montoTotal}, ${cols.montoItbis}, ${cols.tasaItbis},
+            ${cols.montoServicios}, ${cols.montoBienes}, ${cols.isc}, ${cols.otrosImpuestos}, ${cols.propina},
+            ${cols.tipoIngreso}, ${cols.formaPago}, ${cols.tipoBs},
+            ${JSON.stringify(analysis.invoices[i])}::jsonb,
+            ${total > 1 ? i : null}, ${total > 1 ? total : null}
+          )
+          RETURNING *
+        `,
+      ] as Parameters<typeof sql.transaction>[0])
+      createdRows.push(((rows as unknown[][])[1] as unknown[])[0])
+    }
+    return c.json({ facturas: createdRows, detected_count: total, detection_source: 'auto', documento: 'azul' }, 201)
+  }
+
+  // Genérico: crear N stubs en cola; la extracción ocurre en la cola.
+  for (let i = 0; i < analysis.count; i++) {
+    createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, i, analysis.count))
+  }
+  // Arranca el procesamiento ya, sin esperar al cron (que es la red de seguridad).
+  c.executionCtx.waitUntil(processQueue(c.env))
+  return c.json({ facturas: createdRows, detected_count: analysis.count, detection_source: analysis.source }, 201)
 })
 
 // POST /api/facturas/detect — solo detecta el conteo sin crear registros
@@ -277,6 +290,33 @@ facturas.get('/:id/imagen', async (c) => {
   obj.writeHttpMetadata(headers)
   return new Response(obj.body, { headers })
 })
+
+// Crea un registro vacío "en_cola" para que la cola lo procese más tarde.
+async function insertStub(
+  sql: ReturnType<typeof getDb>,
+  userId: string,
+  clienteId: string,
+  key: string,
+  tipo: string,
+  index: number,
+  count: number,
+): Promise<unknown> {
+  const rows = await sql.transaction([
+    sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
+    sql`
+      INSERT INTO facturas (cliente_id, imagen_path, tipo, source_index, source_count)
+      VALUES (
+        ${clienteId}::uuid,
+        ${key},
+        ${tipo},
+        ${count > 1 ? index : null},
+        ${count > 1 ? count : null}
+      )
+      RETURNING *
+    `,
+  ] as Parameters<typeof sql.transaction>[0])
+  return ((rows as unknown[][])[1] as unknown[])[0]
+}
 
 // ── Duplicate detection helper ────────────────────────────────────────────────
 
