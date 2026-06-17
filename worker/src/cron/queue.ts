@@ -4,7 +4,7 @@ import { extractionToColumns } from '../lib/extraction'
 import { getPageCount, extractPage } from '../lib/pdf'
 import type { Env, ExtractionResult } from '../types'
 
-const MAX_PER_RUN = 15  // Gemini free tier: 15 RPM
+const MAX_PER_RUN = 3   // Gemini free tier: 15 RPM, pero cron cada minuto → 3 para no saturar
 const MAX_RETRIES = 3
 
 type ClaimedFactura = {
@@ -47,8 +47,9 @@ export async function processQueue(env: Env): Promise<void> {
 
   // Secuencial: una factura a la vez. Evita saturar el rate limit de Gemini
   // (que provoca 429 y reintentos) y hace el procesamiento más predecible.
-  for (const f of claimed) {
-    await processOne(f, env, sql)
+  for (let i = 0; i < claimed.length; i++) {
+    if (i > 0) await new Promise(r => setTimeout(r, 4000)) // 4s entre llamadas → ~15 RPM máx
+    await processOne(claimed[i], env, sql)
   }
 }
 
