@@ -25,9 +25,9 @@ export async function processQueue(env: Env): Promise<void> {
   // registro que lleva >10 min en procesando definitivamente está atascado.
   await sql`
     UPDATE facturas
-    SET estado = 'en_cola', ultimo_error = 'Timeout: atascada en procesando por más de 5 minutos'
+    SET estado = 'en_cola', ultimo_error = 'Timeout: atascada en procesando por más de 30 minutos'
     WHERE estado = 'procesando'
-      AND creado_en < NOW() - INTERVAL '5 minutes'
+      AND creado_en < NOW() - INTERVAL '30 minutes'
   `
 
   const claimed = await sql`
