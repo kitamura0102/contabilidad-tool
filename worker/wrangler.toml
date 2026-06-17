@@ -17,6 +17,11 @@ bucket_name = "cifra-facturas"
 [triggers]
 crons = ["* * * * *"]
 
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 # Secrets — set via: wrangler secret put <NAME>
 # DATABASE_URL
 # GEMINI_API_KEY
