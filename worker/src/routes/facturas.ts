@@ -28,7 +28,7 @@ facturas.get('/', async (c) => {
       WHERE (${cliente_id ?? null}::uuid IS NULL OR f.cliente_id = ${cliente_id ?? null}::uuid)
         AND (${estado ?? null}::text IS NULL OR f.estado = ${estado ?? null}::text)
         AND (${tipo ?? null}::text IS NULL OR f.tipo = ${tipo ?? null}::text)
-      ORDER BY f.creado_en DESC
+      ORDER BY f.creado_en DESC, f.source_index ASC NULLS LAST
       LIMIT ${limit}
     `,
   ] as Parameters<typeof sql.transaction>[0])
@@ -76,11 +76,14 @@ facturas.post('/', async (c) => {
 
   const sql = getDb(c.env.DATABASE_URL)
   const createdRows: unknown[] = []
+  // Timestamp compartido por todo el lote: así las filas de un mismo archivo
+  // quedan juntas y se ordenan por source_index (#1, #2, …) en vez de al revés.
+  const batchTime = new Date().toISOString()
 
   // Si el usuario forzó el conteo, saltamos el análisis y creamos stubs genéricos.
   if (forceCount) {
     for (let i = 0; i < forceCount; i++) {
-      createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, i, forceCount))
+      createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, i, forceCount, batchTime))
     }
     // Arranca el procesamiento ya, sin esperar al cron.
     c.executionCtx.waitUntil(processQueue(c.env))
@@ -105,7 +108,7 @@ facturas.post('/', async (c) => {
             monto_total_cent, monto_itbis_cent, tasa_itbis,
             monto_servicios_cent, monto_bienes_cent, isc_cent, otros_impuestos_cent, propina_cent,
             tipo_ingreso, forma_pago, tipo_bs,
-            confidence_json, source_index, source_count
+            confidence_json, source_index, source_count, creado_en
           )
           VALUES (
             ${clienteId}::uuid, ${key}, ${tipo}, ${cols.estado},
@@ -114,7 +117,7 @@ facturas.post('/', async (c) => {
             ${cols.montoServicios}, ${cols.montoBienes}, ${cols.isc}, ${cols.otrosImpuestos}, ${cols.propina},
             ${cols.tipoIngreso}, ${cols.formaPago}, ${cols.tipoBs},
             ${JSON.stringify(analysis.invoices[i])}::jsonb,
-            ${total > 1 ? i : null}, ${total > 1 ? total : null}
+            ${total > 1 ? i : null}, ${total > 1 ? total : null}, ${batchTime}::timestamptz
           )
           RETURNING *
         `,
@@ -126,7 +129,7 @@ facturas.post('/', async (c) => {
 
   // Genérico: crear N stubs en cola; la extracción ocurre en la cola.
   for (let i = 0; i < analysis.count; i++) {
-    createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, i, analysis.count))
+    createdRows.push(await insertStub(sql, userId, clienteId, key, tipo, i, analysis.count, batchTime))
   }
   // Arranca el procesamiento ya, sin esperar al cron (que es la red de seguridad).
   c.executionCtx.waitUntil(processQueue(c.env))
@@ -300,17 +303,19 @@ async function insertStub(
   tipo: string,
   index: number,
   count: number,
+  batchTime: string,
 ): Promise<unknown> {
   const rows = await sql.transaction([
     sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
     sql`
-      INSERT INTO facturas (cliente_id, imagen_path, tipo, source_index, source_count)
+      INSERT INTO facturas (cliente_id, imagen_path, tipo, source_index, source_count, creado_en)
       VALUES (
         ${clienteId}::uuid,
         ${key},
         ${tipo},
         ${count > 1 ? index : null},
-        ${count > 1 ? count : null}
+        ${count > 1 ? count : null},
+        ${batchTime}::timestamptz
       )
       RETURNING *
     `,

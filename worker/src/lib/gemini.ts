@@ -49,31 +49,36 @@ Ejemplos: si hay 1 factura, responde: 1. Si hay 3 recibos, responde: 3.`
 
 // Clasifica el documento y, si es un estado de cuenta AZUL, extrae cada fila de
 // la tabla "Comprobante fiscal por cargos" como una factura independiente.
-const ANALYZE_PROMPT = `Analiza este documento fiscal dominicano y clasifícalo.
+const ANALYZE_PROMPT = `Eres un clasificador de documentos fiscales dominicanos. Revisa TODAS las páginas.
 
-PASO 1 — ¿Es un ESTADO DE CUENTA de AZUL / Servicios Digitales Popular?
-Lo es si contiene una tabla titulada "Comprobante fiscal por cargos" con NCF de
-formato E+12 dígitos (ej: E310007609300) y el pie indica "SERVICIOS DIGITALES POPULAR".
+REGLA PRINCIPAL — Estado de cuenta de AZUL / Servicios Digitales Popular:
+Es AZUL si el documento contiene CUALQUIERA de estas señales (normalmente en la página 2):
+- una tabla titulada "Comprobante fiscal por cargos", o
+- varias filas con NCF de formato E + 12 dígitos (ej: E310007609300), o
+- el texto "Cargos-Comisiones" o "SERVICIOS DIGITALES POPULAR".
+Un estado de cuenta de AZUL es UN SOLO documento con MUCHAS filas; NO lo trates
+como muchas facturas genéricas. Si ves esas señales, es "azul" SIEMPRE.
 
-Si NO es un estado de cuenta de AZUL, responde SOLO:
-{ "tipo_documento": "generico", "cantidad_facturas": <entero de facturas/recibos distintos> }
-
-Si SÍ es un estado de cuenta de AZUL, extrae CADA fila de la tabla
-"Comprobante fiscal por cargos" como una factura. Responde SOLO:
+Si es AZUL, responde SOLO con este JSON (una entrada por CADA fila de la tabla
+"Comprobante fiscal por cargos"):
 {
   "tipo_documento": "azul",
   "facturas": [
     { "ncf": "E310007609300", "fecha_emision": "2026-05-01", "monto_total": "1148.16" }
   ]
 }
-Reglas para AZUL:
-- Una factura por CADA fila de la tabla "Comprobante fiscal por cargos"
-- ncf: valor de la columna NCF (formato E + 12 dígitos), sin espacios
-- fecha_emision: columna "Fecha" convertida a YYYY-MM-DD (la fila viene como DD/MM/YYYY)
-- monto_total: columna "Monto (RD$)", solo el número con punto decimal y sin comas de miles
-- IGNORA las tablas "Otros Cargos", "Ajustes / Otros servicios", "Contracargos" y los resúmenes
-- NO incluyas la fila de total que aparece al final de la tabla
-- El array debe tener una entrada por cada fila con NCF
+Reglas AZUL:
+- Una entrada por CADA fila que tenga un NCF (E + 12 dígitos). Si hay 15 filas, el array tiene 15.
+- ncf: la columna NCF, sin espacios.
+- fecha_emision: la PRIMERA columna "Fecha" de la fila, convertida de DD/MM/YYYY a YYYY-MM-DD.
+- monto_total: la última columna "Monto (RD$)" de esa fila, solo número con punto decimal, SIN comas de miles.
+- NO uses los totales/resúmenes de la página 1 (ventas, depósitos, total transacciones).
+- IGNORA "Otros Cargos", "Ajustes / Otros servicios" y "Contracargos".
+- NO incluyas la fila de total al final de la tabla.
+
+Solo si el documento NO tiene ninguna señal de AZUL, responde SOLO:
+{ "tipo_documento": "generico", "cantidad_facturas": <entero de facturas distintas> }
+
 Responde SOLO JSON válido, sin markdown ni texto adicional.`
 
 const MULTI_EXTRACT_PROMPT = (total: number) => `Este archivo contiene ${total} facturas/recibos.
