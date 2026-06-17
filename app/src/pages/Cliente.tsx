@@ -49,7 +49,7 @@ export default function Cliente() {
   const [correctorIdx, setCorrectorIdx] = useState<number | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
-  useEffect(() => { if (id) load() }, [id, tab])
+  useEffect(() => { if (id) load() }, [id])
 
   // Auto-refresh while anything is still processing.
   useEffect(() => {
@@ -66,7 +66,7 @@ export default function Cliente() {
     try {
       const [c, f] = await Promise.all([
         getCliente(token, id),
-        getFacturas(token, { cliente_id: id, tipo: tab }),
+        getFacturas(token, { cliente_id: id, limit: 2000 }),
       ])
       setCliente(c)
       setFacturas(f)
@@ -165,13 +165,14 @@ export default function Cliente() {
   }
 
   const periodoYM = periodo
-  const procesadasDelPeriodo = facturas.filter(f => f.estado === 'procesada' && f.fecha_emision?.slice(0, 7) === periodoYM).length
+  const procesadasDelPeriodo = facturas.filter(f => f.tipo === tab && f.estado === 'procesada' && f.fecha_emision?.slice(0, 7) === periodoYM).length
   const hasPending = facturas.some(f => f.estado === 'en_cola' || f.estado === 'procesando')
-  const conRevision = facturas.filter(f => f.estado === 'pendiente_revision' || f.estado === 'error_extraccion').length
+  const conRevision = facturas.filter(f => f.tipo === tab && (f.estado === 'pendiente_revision' || f.estado === 'error_extraccion')).length
 
   const filtered = useMemo(() => facturas.filter(f =>
-    !q || (f.rnc_emisor ?? '').includes(q) || (f.ncf ?? '').toLowerCase().includes(q.toLowerCase())
-  ), [facturas, q])
+    f.tipo === tab &&
+    (!q || (f.rnc_emisor ?? '').includes(q) || (f.ncf ?? '').toLowerCase().includes(q.toLowerCase()))
+  ), [facturas, q, tab])
 
   const selectedFacturas = filtered.filter(f => selected.has(f.id))
   const canReintentar = selectedFacturas.filter(f => f.estado === 'error_extraccion').length
@@ -230,7 +231,7 @@ export default function Cliente() {
 
         <div className="tabs">
           {(['compra', 'venta'] as const).map(t => (
-            <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => { setTab(t); setSelected(new Set()); setFacturas([]); setLoading(true) }}>
+            <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => { setTab(t); setSelected(new Set()) }}>
               {t === 'compra' ? 'Compras (606)' : 'Ventas (607)'}
               <span className="tab-count">{facturas.filter(f => f.tipo === t).length}</span>
             </button>
