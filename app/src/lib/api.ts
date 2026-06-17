@@ -54,18 +54,42 @@ export async function getFacturas(token: string, params: {
   return r.json()
 }
 
+export type UploadResult = {
+  facturas: unknown[]
+  detected_count: number
+  detection_source: 'auto' | 'fallback' | 'forced'
+}
+
+// Sube un archivo con detección automática de múltiples facturas.
+// force_count: si el usuario ya confirmó cuántas hay (después del prompt de detección).
 export async function uploadFactura(token: string, data: {
   file: File
   cliente_id: string
   tipo: 'compra' | 'venta'
-}) {
+  force_count?: number
+}): Promise<UploadResult> {
   const formData = new FormData()
   const compressed = await compressImage(data.file)
   formData.append('file', compressed)
   formData.append('cliente_id', data.cliente_id)
   formData.append('tipo', data.tipo)
+  if (data.force_count != null) {
+    formData.append('force_count', String(data.force_count))
+  }
 
   const r = await authFetch(token, '/api/facturas', {
+    method: 'POST',
+    body: formData,
+  })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json() as Promise<UploadResult>
+}
+
+// Detecta cuántas facturas hay en un archivo sin crear registros.
+export async function detectarMultiFatura(token: string, file: File): Promise<{ count: number; source: string }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const r = await authFetch(token, '/api/facturas/detect', {
     method: 'POST',
     body: formData,
   })
@@ -101,14 +125,12 @@ export async function deleteFactura(token: string, id: string): Promise<void> {
   if (!r.ok) throw new Error(await r.text())
 }
 
-// Marca una factura como procesada sin cambiar sus campos (PATCH vacío fija estado='procesada').
 export async function marcarRevisada(token: string, id: string): Promise<void> {
   await patchFactura(token, id, {})
 }
 
 // ─── Reportes ────────────────────────────────────────────────────────────────
 
-// formato 'txt' (oficial DGII) o 'xlsx' (revisión/respaldo del contador)
 export async function downloadReporte(
   token: string,
   clienteId: string,
@@ -148,7 +170,7 @@ export async function lookupRnc(token: string, rnc: string) {
   return r.json()
 }
 
-// ─── Compresión de imagen (client-side) ──────────────────────────────────────
+// ─── Compresión / procesamiento de imagen (client-side) ──────────────────────
 
 async function compressImage(file: File): Promise<Blob> {
   if (file.type === 'application/pdf') return file
@@ -169,7 +191,7 @@ async function compressImage(file: File): Promise<Blob> {
       canvas.width = w
       canvas.height = h
       canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-      canvas.toBlob(blob => resolve(blob!), 'image/webp', 0.8)
+      canvas.toBlob(blob => resolve(blob!), 'image/webp', 0.82)
       URL.revokeObjectURL(url)
     }
 

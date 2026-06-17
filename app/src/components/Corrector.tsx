@@ -2,58 +2,143 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import {
   ArrowLeft, X, CheckCircle, RotateCcw, Trash2, AlertTriangle,
-  FileText, Sparkles, ChevronLeft, ChevronRight,
+  FileText, Sparkles, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Copy,
 } from 'lucide-react'
 import { patchFactura, fetchFacturaImagen, reintentarFactura, deleteFactura } from '../lib/api'
-import { Factura, friendlyError, fmtMoney } from '../lib/factura'
+import {
+  Factura, friendlyError, fmtMoney, centsToPesos, pesosToCents,
+  TIPO_ID_LABEL, TIPO_BS_LABEL, TIPO_INGRESO_LABEL, FORMA_PAGO_LABEL,
+} from '../lib/factura'
 import FacturaBadge from './FacturaBadge'
 
+// ── Edit state ────────────────────────────────────────────────────────────────
+
 type EditFields = {
+  // Básicos (AI + manual)
   rnc_emisor: string
+  tipo_id: string
   ncf: string
+  ncf_modificado: string
   fecha_emision: string
+  fecha_pago: string
+  tipo_bs: string
+  tipo_ingreso: string
+  forma_pago: string
+  tasa_itbis: string
+  // Montos auto
   monto_total: string
   monto_itbis: string
-  tasa_itbis: string
+  monto_servicios: string
+  monto_bienes: string
+  isc: string
+  otros_impuestos: string
+  propina: string
+  // Montos manuales
+  itbis_retenido: string
+  tipo_retencion_isr: string
+  monto_retencion_renta: string
+  isr_percibido: string
+  itbis_proporcionalidad: string
+  itbis_costo: string
+  itbis_adelantar: string
+  itbis_percibido: string
 }
 
-function initEdit(f: Factura): EditFields | null {
-  if (f.estado !== 'pendiente_revision' && f.estado !== 'procesada') return null
+function initEdit(f: Factura): EditFields {
   return {
-    rnc_emisor:    f.rnc_emisor ?? '',
-    ncf:           f.ncf ?? '',
-    fecha_emision: f.fecha_emision?.slice(0, 10) ?? '',
-    monto_total:   f.monto_total_cent != null ? (f.monto_total_cent / 100).toFixed(2) : '',
-    monto_itbis:   f.monto_itbis_cent != null ? (f.monto_itbis_cent / 100).toFixed(2) : '',
-    tasa_itbis:    f.tasa_itbis != null ? String(f.tasa_itbis) : '',
+    rnc_emisor:           f.rnc_emisor ?? '',
+    tipo_id:              f.tipo_id != null ? String(f.tipo_id) : '',
+    ncf:                  f.ncf ?? '',
+    ncf_modificado:       f.ncf_modificado ?? '',
+    fecha_emision:        f.fecha_emision?.slice(0, 10) ?? '',
+    fecha_pago:           f.fecha_pago?.slice(0, 10) ?? '',
+    tipo_bs:              f.tipo_bs ?? '',
+    tipo_ingreso:         f.tipo_ingreso ?? '1',
+    forma_pago:           f.forma_pago ?? '',
+    tasa_itbis:           f.tasa_itbis != null ? String(f.tasa_itbis) : '',
+    monto_total:          centsToPesos(f.monto_total_cent),
+    monto_itbis:          centsToPesos(f.monto_itbis_cent),
+    monto_servicios:      centsToPesos(f.monto_servicios_cent),
+    monto_bienes:         centsToPesos(f.monto_bienes_cent),
+    isc:                  centsToPesos(f.isc_cent),
+    otros_impuestos:      centsToPesos(f.otros_impuestos_cent),
+    propina:              centsToPesos(f.propina_cent),
+    itbis_retenido:       centsToPesos(f.itbis_retenido_cent),
+    tipo_retencion_isr:   f.tipo_retencion_isr ?? '',
+    monto_retencion_renta: centsToPesos(f.monto_retencion_renta_cent),
+    isr_percibido:        centsToPesos(f.isr_percibido_cent),
+    itbis_proporcionalidad: centsToPesos(f.itbis_proporcionalidad_cent),
+    itbis_costo:          centsToPesos(f.itbis_costo_cent),
+    itbis_adelantar:      centsToPesos(f.itbis_adelantar_cent),
+    itbis_percibido:      centsToPesos(f.itbis_percibido_cent),
   }
 }
+
+function editToPatch(ef: EditFields): Record<string, unknown> {
+  const patch: Record<string, unknown> = {}
+  if (ef.rnc_emisor)          patch.rnc_emisor           = ef.rnc_emisor
+  if (ef.tipo_id)             patch.tipo_id              = parseInt(ef.tipo_id)
+  if (ef.ncf)                 patch.ncf                  = ef.ncf
+  if (ef.ncf_modificado)      patch.ncf_modificado       = ef.ncf_modificado
+  if (ef.fecha_emision)       patch.fecha_emision        = ef.fecha_emision
+  if (ef.fecha_pago)          patch.fecha_pago           = ef.fecha_pago
+  if (ef.tipo_bs)             patch.tipo_bs              = ef.tipo_bs
+  if (ef.tipo_ingreso)        patch.tipo_ingreso         = ef.tipo_ingreso
+  if (ef.forma_pago)          patch.forma_pago           = ef.forma_pago
+  if (ef.tasa_itbis)          patch.tasa_itbis           = parseInt(ef.tasa_itbis)
+
+  const mc = (v: string) => pesosToCents(v)
+  const maybeCents = (key: string, v: string) => { const c = mc(v); if (c !== undefined) patch[key] = c }
+
+  maybeCents('monto_total_cent',              ef.monto_total)
+  maybeCents('monto_itbis_cent',              ef.monto_itbis)
+  maybeCents('monto_servicios_cent',          ef.monto_servicios)
+  maybeCents('monto_bienes_cent',             ef.monto_bienes)
+  maybeCents('isc_cent',                      ef.isc)
+  maybeCents('otros_impuestos_cent',          ef.otros_impuestos)
+  maybeCents('propina_cent',                  ef.propina)
+  maybeCents('itbis_retenido_cent',           ef.itbis_retenido)
+  if (ef.tipo_retencion_isr)                  patch.tipo_retencion_isr          = ef.tipo_retencion_isr
+  maybeCents('monto_retencion_renta_cent',    ef.monto_retencion_renta)
+  maybeCents('isr_percibido_cent',            ef.isr_percibido)
+  maybeCents('itbis_proporcionalidad_cent',   ef.itbis_proporcionalidad)
+  maybeCents('itbis_costo_cent',              ef.itbis_costo)
+  maybeCents('itbis_adelantar_cent',          ef.itbis_adelantar)
+  maybeCents('itbis_percibido_cent',          ef.itbis_percibido)
+
+  return patch
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 interface CorrectorProps {
   queue: Factura[]
   startIndex: number
   onClose: () => void
-  onChanged: () => void                       // parent refetches its data
-  onComplete?: (resolved: number) => void     // queue walked to the end
+  onChanged: () => void
+  onComplete?: (resolved: number) => void
 }
 
 export default function Corrector({ queue, startIndex, onClose, onChanged, onComplete }: CorrectorProps) {
   const { getToken } = useAuth()
-  const [idx, setIdx] = useState(startIndex)
-  const [imagen, setImagen] = useState<{ url: string; isPdf: boolean } | null>(null)
+  const [idx, setIdx]           = useState(startIndex)
+  const [imagen, setImagen]     = useState<{ url: string; isPdf: boolean } | null>(null)
   const [imagenLoading, setImagenLoading] = useState(false)
   const [editFields, setEditFields] = useState<EditFields | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [busy, setBusy] = useState<'reintentar' | 'delete' | null>(null)
+  const [saving, setSaving]     = useState(false)
+  const [busy, setBusy]         = useState<'reintentar' | 'delete' | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [zoom, setZoom]         = useState(1)
+  const [duplicateInfo, setDuplicateInfo] = useState<{ id: string; ncf: string | null } | null>(null)
   const resolved = useRef(0)
 
   const current = queue[idx]
-  const isLast = idx + 1 >= queue.length
-  const multi = queue.length > 1
+  const isLast  = idx + 1 >= queue.length
+  const multi   = queue.length > 1
+  const isMultiSource = current?.source_count != null && current.source_count > 1
 
-  // Load image + reset fields whenever the current factura changes.
+  // Load image + reset on navigation
   useEffect(() => {
     if (!current) return
     let revoked = false
@@ -63,6 +148,12 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
     setEditFields(initEdit(current))
     setConfirmDelete(false)
     setActionError(null)
+    setZoom(1)
+    setDuplicateInfo(
+      current.posible_duplicado_id
+        ? { id: current.posible_duplicado_id, ncf: null }
+        : null
+    )
     ;(async () => {
       const token = await getToken()
       if (!token) { setImagenLoading(false); return }
@@ -71,16 +162,12 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
         blobUrl = img.url
         if (!revoked) setImagen(img)
         else URL.revokeObjectURL(img.url)
-      } catch {
-        /* imagen no disponible */
-      } finally {
-        if (!revoked) setImagenLoading(false)
-      }
+      } catch { /* imagen no disponible */ }
+      finally { if (!revoked) setImagenLoading(false) }
     })()
     return () => { revoked = true; if (blobUrl) URL.revokeObjectURL(blobUrl) }
   }, [current?.id])
 
-  // Escape closes.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -98,14 +185,12 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
     if (!editFields) return true
     const token = await getToken()
     if (!token) return false
-    await patchFactura(token, current.id, {
-      rnc_emisor:       editFields.rnc_emisor    || undefined,
-      ncf:              editFields.ncf           || undefined,
-      fecha_emision:    editFields.fecha_emision || undefined,
-      monto_total_cent: editFields.monto_total   ? Math.round(parseFloat(editFields.monto_total) * 100) : undefined,
-      monto_itbis_cent: editFields.monto_itbis   ? Math.round(parseFloat(editFields.monto_itbis) * 100) : undefined,
-      tasa_itbis:       editFields.tasa_itbis    ? parseInt(editFields.tasa_itbis) : undefined,
-    })
+    const result = await patchFactura(token, current.id, editToPatch(editFields)) as {
+      posible_duplicado?: { id: string; ncf: string | null } | null
+    }
+    if (result.posible_duplicado) {
+      setDuplicateInfo(result.posible_duplicado)
+    }
     resolved.current += 1
     return true
   }
@@ -137,9 +222,7 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
       advanceOrFinish()
     } catch (err) {
       setActionError(`No se pudo reintentar: ${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      setBusy(null)
-    }
+    } finally { setBusy(null) }
   }
 
   async function handleDelete() {
@@ -150,15 +233,15 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
       if (!token) return
       await deleteFactura(token, current.id)
       onChanged()
-      // Drop the deleted item from the local queue view by advancing.
       advanceOrFinish()
     } catch (err) {
       setActionError(`No se pudo borrar: ${err instanceof Error ? err.message : String(err)}`)
       setConfirmDelete(false)
-    } finally {
-      setBusy(null)
-    }
+    } finally { setBusy(null) }
   }
+
+  const set = (key: keyof EditFields) => (v: string) =>
+    setEditFields(f => f ? { ...f, [key]: v } : f)
 
   const incompleto = editFields && (!editFields.rnc_emisor || !editFields.ncf || !editFields.monto_total)
 
@@ -173,6 +256,11 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
           <div className="t-h2">Revisar factura</div>
           <div className="t-sm t-muted">
             {current.nombre_empresa ?? '—'} · {current.fecha_emision?.slice(0, 10) ?? 'sin fecha'} · {current.ncf ?? 'sin NCF'}
+            {isMultiSource && (
+              <span style={{ marginLeft: 8, color: 'var(--accent)', fontWeight: 500 }}>
+                · Factura {(current.source_index ?? 0) + 1}/{current.source_count} del archivo
+              </span>
+            )}
           </div>
         </div>
 
@@ -216,12 +304,11 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
             <button className="btn btn-secondary" onClick={() => handleSave(false)} disabled={saving || busy !== null}>
               {saving ? 'Guardando…' : 'Guardar y cerrar'}
             </button>
-            {multi && !isLast && (
+            {multi && !isLast ? (
               <button className="btn btn-primary" onClick={() => handleSave(true)} disabled={saving || busy !== null}>
                 <CheckCircle size={15} />Guardar y siguiente
               </button>
-            )}
-            {(!multi || isLast) && (
+            ) : (
               <button className="btn btn-primary" onClick={() => handleSave(false)} disabled={saving || busy !== null}>
                 <CheckCircle size={15} />Guardar
               </button>
@@ -232,44 +319,92 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
 
       {/* Body: 55/45 */}
       <div className="flow-body">
-        {/* Image */}
-        <div style={{ flex: '1 1 55%', background: 'var(--slate-900)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto', padding: 28 }}>
-          {imagenLoading ? (
-            <div className="ai-processing">
-              <div className="ai-orb"><Sparkles size={22} /></div>
-              <div className="t-sm" style={{ color: 'var(--text-on-dark-muted)' }}>Cargando imagen…</div>
-            </div>
-          ) : imagen ? (
-            imagen.isPdf ? (
-              <iframe src={imagen.url} title="Factura PDF" style={{ width: '100%', height: '100%', border: 'none', borderRadius: 6 }} />
-            ) : (
-              <img src={imagen.url} alt="Factura" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6, boxShadow: '0 4px 24px rgba(0,0,0,0.5)' }} />
-            )
-          ) : (
-            <div style={{ color: 'var(--slate-500)', fontSize: 13, textAlign: 'center' }}>
-              <FileText size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
-              <div>Imagen no disponible</div>
+        {/* Image panel */}
+        <div style={{ flex: '1 1 55%', background: 'var(--slate-900)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Zoom controls */}
+          {imagen && !imagen.isPdf && (
+            <div style={{ display: 'flex', gap: 6, padding: '8px 12px', justifyContent: 'flex-end', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} title="Alejar" disabled={zoom <= 0.5}>
+                <ZoomOut size={14} style={{ color: 'var(--slate-300)' }} />
+              </button>
+              <span className="t-sm tnum" style={{ color: 'var(--slate-400)', alignSelf: 'center', minWidth: 36, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setZoom(z => Math.min(4, z + 0.25))} title="Acercar" disabled={zoom >= 4}>
+                <ZoomIn size={14} style={{ color: 'var(--slate-300)' }} />
+              </button>
+              <button className="btn btn-ghost btn-sm" style={{ color: 'var(--slate-400)', fontSize: 11 }} onClick={() => setZoom(1)}>Reset</button>
             </div>
           )}
+          <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: zoom === 1 ? 'center' : 'flex-start', justifyContent: zoom === 1 ? 'center' : 'flex-start', padding: 28 }}>
+            {imagenLoading ? (
+              <div className="ai-processing">
+                <div className="ai-orb"><Sparkles size={22} /></div>
+                <div className="t-sm" style={{ color: 'var(--text-on-dark-muted)' }}>Cargando imagen…</div>
+              </div>
+            ) : imagen ? (
+              imagen.isPdf ? (
+                <iframe src={imagen.url} title="Factura PDF" style={{ width: '100%', height: '100%', border: 'none', borderRadius: 6 }} />
+              ) : (
+                <img
+                  src={imagen.url}
+                  alt="Factura"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain',
+                    borderRadius: 6,
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+                    cursor: zoom < 4 ? 'zoom-in' : 'zoom-out',
+                    transform: `scale(${zoom})`,
+                    transformOrigin: 'top left',
+                    transition: 'transform 0.15s',
+                  }}
+                  onClick={() => setZoom(z => z >= 4 ? 1 : Math.min(4, z + 0.5))}
+                />
+              )
+            ) : (
+              <div style={{ color: 'var(--slate-500)', fontSize: 13, textAlign: 'center' }}>
+                <FileText size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+                <div>Imagen no disponible</div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Fields */}
+        {/* Fields panel */}
         <div style={{ flex: '1 1 45%', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)', overflow: 'auto' }}>
-          <div style={{ padding: '24px 28px', maxWidth: 480 }}>
+          <div style={{ padding: '24px 28px', maxWidth: 520 }}>
+
+            {/* Duplicate alert */}
+            {duplicateInfo && (
+              <div className="row gap-3" style={{ marginBottom: 16, padding: '10px 13px', background: 'var(--amber-50)', border: '1px solid var(--amber-200)', borderRadius: 8 }}>
+                <Copy size={15} style={{ color: 'var(--amber-600)', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div className="t-sm" style={{ color: 'var(--amber-800)', fontWeight: 500 }}>Posible duplicado detectado</div>
+                  <div style={{ fontSize: 11, color: 'var(--amber-700)', marginTop: 2 }}>
+                    Ya existe una factura con el mismo NCF o datos similares. Verifica antes de guardar.
+                  </div>
+                </div>
+                <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setDuplicateInfo(null)} title="Ignorar alerta">
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
+            {/* Error/warning banners */}
             {actionError && (
-              <div className="row gap-3" style={{ marginBottom: 18, padding: '10px 13px', background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 8 }}>
+              <div className="row gap-3" style={{ marginBottom: 16, padding: '10px 13px', background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 8 }}>
                 <X size={16} style={{ color: 'var(--red-600)', flexShrink: 0 }} />
                 <div className="t-sm" style={{ color: 'var(--red-700)' }}>{actionError}</div>
               </div>
             )}
             {current.estado === 'pendiente_revision' && (
-              <div className="row gap-3" style={{ marginBottom: 18, padding: '10px 13px', background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 8 }}>
+              <div className="row gap-3" style={{ marginBottom: 16, padding: '10px 13px', background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 8 }}>
                 <AlertTriangle size={16} style={{ color: 'var(--amber-600)', flexShrink: 0 }} />
                 <div className="t-sm" style={{ color: 'var(--amber-700)' }}>OCR con baja confianza. Verifica los campos contra la imagen.</div>
               </div>
             )}
             {current.estado === 'error_extraccion' && current.ultimo_error && (
-              <div className="row gap-3" style={{ marginBottom: 18, padding: '10px 13px', background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 8 }}>
+              <div className="row gap-3" style={{ marginBottom: 16, padding: '10px 13px', background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 8 }}>
                 <X size={16} style={{ color: 'var(--red-600)', flexShrink: 0 }} />
                 <div>
                   <div className="t-sm" style={{ color: 'var(--red-700)', fontWeight: 500 }}>{friendlyError(current.ultimo_error)}</div>
@@ -278,50 +413,145 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
               </div>
             )}
 
-            <div className="upper-label" style={{ marginBottom: 14 }}>Datos del emisor</div>
-
             {editFields ? (
               <>
-                <EditField label="RNC Emisor" value={editFields.rnc_emisor} mono onChange={v => setEditFields(f => f && { ...f, rnc_emisor: v })} />
-                <EditField label="NCF" value={editFields.ncf} mono onChange={v => setEditFields(f => f && { ...f, ncf: v })} />
+                {/* ── Sección: Emisor ── */}
+                <SectionLabel>Emisor</SectionLabel>
                 <div className="row gap-3">
                   <div style={{ flex: 1 }}>
-                    <EditField label="Fecha emisión" value={editFields.fecha_emision} type="date" onChange={v => setEditFields(f => f && { ...f, fecha_emision: v })} />
+                    <EF label="RNC / Cédula" value={editFields.rnc_emisor} mono onChange={set('rnc_emisor')} />
                   </div>
                   <div style={{ width: 130 }}>
+                    <label className="field-label">Tipo ID</label>
+                    <select className="input" value={editFields.tipo_id} onChange={e => set('tipo_id')(e.target.value)}>
+                      <option value="">— auto —</option>
+                      {Object.entries(TIPO_ID_LABEL).map(([k, v]) => <option key={k} value={k}>{k} — {v}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="row gap-3">
+                  <div style={{ flex: 1 }}>
+                    <EF label="NCF" value={editFields.ncf} mono onChange={set('ncf')} placeholder="B01... o E31..." />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <EF label="NCF Modificado" value={editFields.ncf_modificado} mono onChange={set('ncf_modificado')} placeholder="nota crédito/débito" />
+                  </div>
+                </div>
+                <div className="row gap-3">
+                  <div style={{ flex: 1 }}>
+                    <EF label="Fecha comprobante" value={editFields.fecha_emision} type="date" onChange={set('fecha_emision')} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <EF label="Fecha pago" value={editFields.fecha_pago} type="date" onChange={set('fecha_pago')} />
+                  </div>
+                </div>
+                <div className="row gap-3">
+                  <div style={{ flex: 1 }}>
+                    <label className="field-label">Tipo Bienes/Servicios</label>
+                    <select className="input" value={editFields.tipo_bs} onChange={e => set('tipo_bs')(e.target.value)}>
+                      <option value="">—</option>
+                      {Object.entries(TIPO_BS_LABEL).map(([k, v]) => <option key={k} value={k}>{k} — {v}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="field-label">Tipo Ingreso (607)</label>
+                    <select className="input" value={editFields.tipo_ingreso} onChange={e => set('tipo_ingreso')(e.target.value)}>
+                      {Object.entries(TIPO_INGRESO_LABEL).map(([k, v]) => <option key={k} value={k}>{k} — {v}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* ── Sección: Montos ── */}
+                <SectionLabel style={{ marginTop: 20 }}>Montos</SectionLabel>
+                <div className="row gap-3">
+                  <EF label="Total facturado (RD$)" value={editFields.monto_total} type="number" mono onChange={set('monto_total')} />
+                  <EF label="ITBIS (RD$)" value={editFields.monto_itbis} type="number" mono onChange={set('monto_itbis')} />
+                </div>
+                <div className="row gap-3">
+                  <div style={{ width: 130 }}>
                     <label className="field-label">Tasa ITBIS</label>
-                    <select className="input" value={editFields.tasa_itbis} onChange={e => setEditFields(f => f && { ...f, tasa_itbis: e.target.value })}>
+                    <select className="input" value={editFields.tasa_itbis} onChange={e => set('tasa_itbis')(e.target.value)}>
                       <option value="">—</option>
                       <option value="16">16%</option>
                       <option value="18">18%</option>
                     </select>
                   </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="field-label">Forma de pago</label>
+                    <select className="input" value={editFields.forma_pago} onChange={e => set('forma_pago')(e.target.value)}>
+                      <option value="">—</option>
+                      {Object.entries(FORMA_PAGO_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
                 </div>
+                <div className="row gap-3">
+                  <EF label="Monto servicios" value={editFields.monto_servicios} type="number" mono onChange={set('monto_servicios')} />
+                  <EF label="Monto bienes" value={editFields.monto_bienes} type="number" mono onChange={set('monto_bienes')} />
+                </div>
+                <div className="row gap-3">
+                  <EF label="ISC (Imp. Selectivo)" value={editFields.isc} type="number" mono onChange={set('isc')} />
+                  <EF label="Otros impuestos" value={editFields.otros_impuestos} type="number" mono onChange={set('otros_impuestos')} />
+                </div>
+                <EF label="Propina legal (RD$)" value={editFields.propina} type="number" mono onChange={set('propina')} />
 
-                <div className="upper-label" style={{ margin: '18px 0 14px' }}>Montos</div>
+                {/* ── Sección: ITBIS/ISR manual ── */}
+                <SectionLabel style={{ marginTop: 20 }}>Retenciones (manual)</SectionLabel>
+                <div className="field-note" style={{ marginBottom: 12 }}>
+                  Estos campos no se pueden extraer de la factura. Llénalos a mano según corresponda.
+                </div>
+                <div className="row gap-3">
+                  <EF label="ITBIS Retenido" value={editFields.itbis_retenido} type="number" mono onChange={set('itbis_retenido')} />
+                  <EF label="ITBIS Percibido" value={editFields.itbis_percibido} type="number" mono onChange={set('itbis_percibido')} />
+                </div>
+                <div className="row gap-3">
+                  <EF label="ITBIS Proporcionalidad Art.349" value={editFields.itbis_proporcionalidad} type="number" mono onChange={set('itbis_proporcionalidad')} />
+                  <EF label="ITBIS al Costo" value={editFields.itbis_costo} type="number" mono onChange={set('itbis_costo')} />
+                </div>
+                <EF label="ITBIS por Adelantar" value={editFields.itbis_adelantar} type="number" mono onChange={set('itbis_adelantar')} />
                 <div className="row gap-3">
                   <div style={{ flex: 1 }}>
-                    <EditField label="Monto total (RD$)" value={editFields.monto_total} type="number" mono onChange={v => setEditFields(f => f && { ...f, monto_total: v })} />
+                    <EF label="Tipo Retención ISR" value={editFields.tipo_retencion_isr} onChange={set('tipo_retencion_isr')} placeholder="ej: 01, 02…" />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <EditField label="ITBIS (RD$)" value={editFields.monto_itbis} type="number" mono onChange={v => setEditFields(f => f && { ...f, monto_itbis: v })} />
-                  </div>
+                  <EF label="Monto Retención Renta" value={editFields.monto_retencion_renta} type="number" mono onChange={set('monto_retencion_renta')} />
                 </div>
+                <EF label="ISR Percibido en Compras" value={editFields.isr_percibido} type="number" mono onChange={set('isr_percibido')} />
 
                 {incompleto && (
-                  <div className="field-note warn" style={{ marginTop: 4 }}>
-                    <AlertTriangle size={12} />Faltan campos (RNC, NCF o monto). Puedes guardar igual, pero revisa.
+                  <div className="field-note warn" style={{ marginTop: 8 }}>
+                    <AlertTriangle size={12} />Faltan campos críticos (RNC, NCF o monto total). Puedes guardar igual.
+                  </div>
+                )}
+
+                {/* resumen de montos */}
+                {editFields.monto_total && (
+                  <div style={{ marginTop: 20, padding: '12px 14px', background: 'var(--bg-subtle)', borderRadius: 8, fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span className="t-muted">Total facturado</span>
+                      <span className="tnum cell-strong">{fmtMoney(pesosToCents(editFields.monto_total) ?? null)}</span>
+                    </div>
+                    {editFields.monto_itbis && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="t-muted">ITBIS</span>
+                        <span className="tnum">{fmtMoney(pesosToCents(editFields.monto_itbis) ?? null)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </>
             ) : (
               <>
-                <ReadField label="RNC Emisor"    value={current.rnc_emisor ?? ''} mono />
-                <ReadField label="NCF"           value={current.ncf ?? ''} mono />
-                <ReadField label="Fecha emisión" value={current.fecha_emision?.slice(0, 10) ?? ''} />
-                <ReadField label="Monto total"   value={fmtMoney(current.monto_total_cent)} />
-                <ReadField label="ITBIS"         value={fmtMoney(current.monto_itbis_cent)} />
-                <ReadField label="Tasa ITBIS"    value={current.tasa_itbis ? `${current.tasa_itbis}%` : ''} />
+                <SectionLabel>Emisor</SectionLabel>
+                <RF label="RNC / Cédula"  value={current.rnc_emisor ?? ''} mono />
+                <RF label="Tipo ID"        value={current.tipo_id ? `${current.tipo_id} — ${TIPO_ID_LABEL[current.tipo_id] ?? ''}` : ''} />
+                <RF label="NCF"            value={current.ncf ?? ''} mono />
+                <RF label="NCF Modificado" value={current.ncf_modificado ?? ''} mono />
+                <RF label="Fecha emisión"  value={current.fecha_emision?.slice(0, 10) ?? ''} />
+                <RF label="Fecha pago"     value={current.fecha_pago?.slice(0, 10) ?? ''} />
+                <SectionLabel style={{ marginTop: 16 }}>Montos</SectionLabel>
+                <RF label="Total"   value={fmtMoney(current.monto_total_cent)} />
+                <RF label="ITBIS"   value={fmtMoney(current.monto_itbis_cent)} />
+                <RF label="Tasa"    value={current.tasa_itbis ? `${current.tasa_itbis}%` : ''} />
+                <RF label="Propina" value={fmtMoney(current.propina_cent)} />
               </>
             )}
           </div>
@@ -331,11 +561,18 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
   )
 }
 
-function EditField({ label, value, type = 'text', mono, onChange }: {
-  label: string; value: string; type?: string; mono?: boolean; onChange: (v: string) => void
+// ── Field sub-components ──────────────────────────────────────────────────────
+
+function SectionLabel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return <div className="upper-label" style={{ marginBottom: 12, ...style }}>{children}</div>
+}
+
+function EF({ label, value, type = 'text', mono, onChange, placeholder }: {
+  label: string; value: string; type?: string; mono?: boolean
+  onChange: (v: string) => void; placeholder?: string
 }) {
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div style={{ marginBottom: 12, flex: 1 }}>
       <label className="field-label">{label}</label>
       <input
         className={`input${mono ? ' mono' : ''}`}
@@ -343,15 +580,15 @@ function EditField({ label, value, type = 'text', mono, onChange }: {
         step={type === 'number' ? '0.01' : undefined}
         value={value}
         onChange={e => onChange(e.target.value)}
-        placeholder="—"
+        placeholder={placeholder ?? '—'}
       />
     </div>
   )
 }
 
-function ReadField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function RF({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
+    <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 10 }}>
       <div className="field-label" style={{ marginBottom: 3 }}>{label}</div>
       <div style={{ fontSize: 14, color: value ? 'var(--text-strong)' : 'var(--text-faint)', fontFamily: mono ? 'var(--font-mono)' : 'inherit' }}>
         {value || '—'}

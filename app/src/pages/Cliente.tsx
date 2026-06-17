@@ -84,12 +84,41 @@ export default function Cliente() {
     const token = await getToken()
     if (!token) { setUploading(false); return }
     try {
-      const results = await Promise.allSettled(
-        files.map(file => uploadFactura(token, { file, cliente_id: id, tipo: tab }))
-      )
-      const ok = results.filter(r => r.status === 'fulfilled').length
+      let totalFacturas = 0
+      let totalArchivos = 0
+
+      for (const file of files) {
+        try {
+          const result = await uploadFactura(token, { file, cliente_id: id, tipo: tab })
+          totalArchivos += 1
+          totalFacturas += result.detected_count
+
+          // Si la detección automática no fue confiable, preguntar al usuario
+          if (result.detection_source === 'fallback' && result.detected_count === 1) {
+            const respuesta = window.prompt(
+              `¿Cuántas facturas tiene el archivo "${file.name}"?\n(Escribe un número, Enter para asumir 1)`
+            )
+            const n = respuesta ? parseInt(respuesta, 10) : 1
+            if (n > 1 && !isNaN(n)) {
+              // Re-subir con el conteo forzado
+              const retry = await uploadFactura(token, { file, cliente_id: id, tipo: tab, force_count: n })
+              totalFacturas += retry.detected_count - 1 // ya contamos 1 arriba
+            }
+          }
+        } catch {
+          // continúa con el siguiente archivo
+        }
+      }
+
       await load()
-      if (files.length > 1) setToast(`${ok} de ${files.length} facturas subidas`)
+
+      if (totalArchivos === 1 && totalFacturas === 1) {
+        // silencioso — comportamiento normal de una factura
+      } else if (totalFacturas > totalArchivos) {
+        setToast(`${totalFacturas} facturas detectadas en ${totalArchivos} archivo${totalArchivos !== 1 ? 's' : ''}`)
+      } else {
+        setToast(`${totalArchivos} archivo${totalArchivos !== 1 ? 's' : ''} subido${totalArchivos !== 1 ? 's' : ''}`)
+      }
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
