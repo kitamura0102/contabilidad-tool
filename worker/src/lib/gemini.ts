@@ -309,11 +309,14 @@ function emptyExtraction(): ExtractionResult {
 
 // ── Extracción por página / foto (documentos desordenados) ─────────────────────
 
-// Una página escaneada o una foto puede traer 1, 2 o 3 facturas distintas,
-// rotadas, tickets o facturas digitales. Este prompt las separa y extrae cada una.
-const PAGE_PROMPT = `Esta imagen es UNA página escaneada o foto que puede contener 1, 2 o 3
+// Una página escaneada o una foto puede traer 1-3 facturas, o ser un estado de
+// cuenta con muchas filas fiscales. Este prompt separa y extrae cada una.
+const PAGE_PROMPT = `Esta imagen es UNA página escaneada o foto. Normalmente trae 1, 2 o 3
 facturas/comprobantes fiscales dominicanos distintos (a veces lado a lado o uno
 arriba y otro abajo). Pueden estar rotados, ser tickets de caja o facturas digitales.
+A VECES es un estado de cuenta o listado con MUCHAS filas fiscales (por ejemplo un
+estado de cuenta de tarjetas con una tabla "Comprobante fiscal por cargos"); en ese
+caso cada fila con su propio NCF es una factura.
 
 Identifica CADA comprobante fiscal distinto y extrae sus datos. Devuelve SOLO un
 JSON válido sin markdown, con un objeto por cada factura:
@@ -341,10 +344,14 @@ JSON válido sin markdown, con un objeto por cada factura:
 }
 Reglas:
 - Un objeto por CADA comprobante con NCF distinto que veas en la página.
+- Si es un estado de cuenta/listado con muchas filas, extrae TODAS las filas que
+  tengan NCF (pueden ser 10, 15 o más), una por objeto.
+- Si las filas comparten un mismo RNC emisor que aparece UNA vez en el encabezado
+  o el pie de página, usa ese mismo rnc_emisor para todas las filas.
 - Si ves el MISMO NCF dos veces (ej. un ticket de caja y su versión digital de la
   misma compra), inclúyelo UNA sola vez.
 - IGNORA lo que no sea comprobante fiscal: códigos QR sueltos, vouchers de tarjeta,
-  papeles en blanco, sellos de "PAGADO".
+  papeles en blanco, sellos de "PAGADO", totales y resúmenes sin NCF.
 - Las facturas rotadas también cuéntalas; léelas en su orientación correcta.
 - rnc_emisor: solo dígitos sin guiones ni espacios.
 - tipo_id: 1 si RNC (9 dígitos), 2 si cédula (11 dígitos), 3 si pasaporte.
