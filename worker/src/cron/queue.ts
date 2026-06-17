@@ -4,7 +4,10 @@ import { extractionToColumns } from '../lib/extraction'
 import { getPageCount, extractPage } from '../lib/pdf'
 import type { Env, ExtractionResult } from '../types'
 
-const MAX_PER_RUN = 3   // Gemini free tier: 15 RPM, pero cron cada minuto → 3 para no saturar
+const MAX_PER_RUN = 1   // Una página por corrida: extraer una página de un PDF
+                        // grande con pdf-lib es pesado en CPU. Procesar varias por
+                        // corrida revienta el límite de CPU de Cloudflare y mata el
+                        // worker en seco (sin pasar por el catch → atascado).
 const MAX_RETRIES = 3
 
 type ClaimedFactura = {
@@ -20,19 +23,25 @@ type ClaimedFactura = {
 export async function processQueue(env: Env): Promise<void> {
   const sql = getDb(env.DATABASE_URL)
 
-  // Liberar facturas atascadas en 'procesando' por más de 10 minutos.
-  // Se usa creado_en como proxy ya que no hay updated_at; funciona porque un
-  // registro que lleva >10 min en procesando definitivamente está atascado.
+  // Liberar facturas atascadas en 'procesando' por más de 30 minutos.
+  // Si un registro ya agotó sus intentos, va a error_extraccion (no vuelve a la
+  // cola): un crash duro —p.ej. límite de CPU al extraer una página pesada— mata
+  // al worker sin pasar por el catch, así que el conteo de intentos se hace al
+  // reclamar (ver abajo). Esto evita que un registro tóxico cicle para siempre.
   await sql`
     UPDATE facturas
-    SET estado = 'en_cola', ultimo_error = 'Timeout: atascada en procesando por más de 30 minutos'
+    SET estado = CASE WHEN intentos >= ${MAX_RETRIES} THEN 'error_extraccion' ELSE 'en_cola' END,
+        ultimo_error = 'Timeout: atascada en procesando por más de 30 minutos'
     WHERE estado = 'procesando'
       AND creado_en < NOW() - INTERVAL '30 minutes'
   `
 
+  // Al reclamar se incrementa intentos de inmediato. Así, aunque el worker muera
+  // en seco a la mitad (límite de CPU/memoria) sin llegar al catch, el intento
+  // queda contado y el registro no se reintenta infinitamente.
   const claimed = await sql`
     UPDATE facturas
-    SET estado = 'procesando'
+    SET estado = 'procesando', intentos = intentos + 1
     WHERE id IN (
       SELECT id FROM facturas
       WHERE estado = 'en_cola' AND intentos < ${MAX_RETRIES}
@@ -45,10 +54,7 @@ export async function processQueue(env: Env): Promise<void> {
 
   if (!claimed.length) return
 
-  // Secuencial: una factura a la vez. Evita saturar el rate limit de Gemini
-  // (que provoca 429 y reintentos) y hace el procesamiento más predecible.
   for (let i = 0; i < claimed.length; i++) {
-    if (i > 0) await new Promise(r => setTimeout(r, 4000)) // 4s entre llamadas → ~15 RPM máx
     await processOne(claimed[i], env, sql)
   }
 }
@@ -108,18 +114,18 @@ async function processOne(
 
     const isTransient = /429|RESOURCE_EXHAUSTED|quota|503|overloaded|unavailable|rate.?limit/i.test(msg)
 
+    // intentos ya se incrementó al reclamar. Un error transitorio (rate limit,
+    // sobrecarga) no debe consumir un intento, así que se devuelve.
     if (isTransient) {
       await sql`
-        UPDATE facturas SET estado = 'en_cola', ultimo_error = ${msg}
+        UPDATE facturas SET estado = 'en_cola', intentos = intentos - 1, ultimo_error = ${msg}
         WHERE id = ${factura.id}
       `
     } else {
-      const nuevoEstado = factura.intentos + 1 >= MAX_RETRIES ? 'error_extraccion' : 'en_cola'
+      // factura.intentos ya refleja el intento actual (incrementado al reclamar).
+      const nuevoEstado = factura.intentos >= MAX_RETRIES ? 'error_extraccion' : 'en_cola'
       await sql`
-        UPDATE facturas SET
-          estado       = ${nuevoEstado},
-          intentos     = intentos + 1,
-          ultimo_error = ${msg}
+        UPDATE facturas SET estado = ${nuevoEstado}, ultimo_error = ${msg}
         WHERE id = ${factura.id}
       `
     }
@@ -153,7 +159,6 @@ async function applyExtraction(
       tipo_bs                  = ${cols.tipoBs},
       confidence_json          = ${JSON.stringify(e)}::jsonb,
       estado                   = ${cols.estado},
-      intentos                 = intentos + 1,
       ultimo_error             = NULL
     WHERE id = ${id}
   `
