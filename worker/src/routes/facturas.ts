@@ -4,14 +4,10 @@ import { z } from 'zod'
 import { getDb, normalizeRnc } from '../lib/db'
 import { analyzeDocument, detectInvoiceCount } from '../lib/gemini'
 import { extractionToColumns } from '../lib/extraction'
-import { getPageCount } from '../lib/pdf'
+import { getPageCount, looksLikeAzul } from '../lib/pdf'
 import { processQueue } from '../cron/queue'
 import { requireAuth } from '../middleware/auth'
 import type { Env, Variables } from '../types'
-
-// PDFs con más páginas que esto se tratan como lotes desordenados (foto a foto),
-// no como un posible estado de cuenta AZUL.
-const AZUL_MAX_PAGES = 6
 
 export const facturas = new Hono<{ Bindings: Env; Variables: Variables }>()
 
@@ -89,8 +85,9 @@ facturas.post('/', async (c) => {
   if (isPdf) {
     const pageCount = await getPageCount(fileBytes)
 
-    // Los PDFs cortos pueden ser un estado de cuenta AZUL → detección dedicada.
-    if (pageCount <= AZUL_MAX_PAGES) {
+    // AZUL se detecta por CONTENIDO (es un PDF digital con texto y marcadores
+    // propios), no por número de páginas. Un PDF de fotos escaneadas nunca lo es.
+    if (await looksLikeAzul(fileBytes)) {
       const analysis = await analyzeDocument(fileBytes, file.type, c.env.GEMINI_API_KEY, c.env.GEMINI_MODEL)
       if (analysis.kind === 'azul') {
         // Cada fila de "Comprobante fiscal por cargos" se crea ya procesada.

@@ -1,4 +1,27 @@
 import { PDFDocument } from 'pdf-lib'
+import { extractText, getDocumentProxy } from 'unpdf'
+import { AZUL_RNC } from './gemini'
+
+// ¿El PDF es un estado de cuenta de AZUL (Servicios Digitales Popular)?
+// AZUL genera PDFs digitales con texto seleccionable. Se detecta por VARIAS
+// señales independientes —principalmente el RNC de AZUL, que es único— para no
+// depender de una sola frase exacta que pueda variar entre versiones.
+export async function looksLikeAzul(bytes: ArrayBuffer): Promise<boolean> {
+  try {
+    const pdf = await getDocumentProxy(new Uint8Array(bytes))
+    const { text } = await extractText(pdf, { mergePages: true })
+    // El RNC de AZUL, ignorando guiones/espacios (1-31-08355-2 → 131083552).
+    const soloDigitos = text.replace(/\D+/g, '')
+    return (
+      soloDigitos.includes(AZUL_RNC) ||
+      /servicios\s+digitales\s+popular/i.test(text) ||
+      /comprobante\s+fiscal\s+por\s+cargos/i.test(text) ||
+      (/\bazul\b/i.test(text) && /cargos\s*-?\s*comisiones/i.test(text))
+    )
+  } catch {
+    return false
+  }
+}
 
 // Número de páginas de un PDF. Si no se puede leer, devuelve 1 (lo tratamos como
 // un documento de una sola página).
