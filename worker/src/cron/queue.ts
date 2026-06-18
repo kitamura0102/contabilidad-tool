@@ -3,9 +3,10 @@ import { extractInvoicesFromPage } from '../lib/gemini'
 import { extractionToColumns } from '../lib/extraction'
 import type { Env, ExtractionResult } from '../types'
 
-const MAX_PER_RUN = 5   // El PDF ya viene partido en páginas sueltas desde la
+const MAX_PER_RUN = 20  // El PDF ya viene partido en páginas sueltas desde la
                         // subida, así que la cola solo descarga una hoja y la manda
                         // a Claude. Sin pdf-lib en la cola → sin riesgo de CPU.
+const MAX_PER_CONTADOR = 2  // Fair queuing: máximo 2 facturas por usuario por run.
 const MAX_RETRIES = 3
 
 type ClaimedFactura = {
@@ -34,27 +35,40 @@ export async function processQueue(env: Env): Promise<void> {
       AND creado_en < NOW() - INTERVAL '30 minutes'
   `
 
+  // Fair queuing: se toman hasta MAX_PER_CONTADOR facturas por contador usando
+  // ROW_NUMBER particionado. Así un usuario con 200 facturas no bloquea a otro
+  // que acaba de subir 1. El UPDATE final con AND estado='en_cola' garantiza que
+  // dos invocaciones concurrentes no procesen la misma factura dos veces.
+  const candidates = await sql`
+    WITH ranked AS (
+      SELECT f.id,
+             ROW_NUMBER() OVER (PARTITION BY c.contador_id ORDER BY f.creado_en) AS rn
+      FROM facturas f
+      JOIN clientes c ON c.id = f.cliente_id
+      WHERE f.estado = 'en_cola' AND f.intentos < ${MAX_RETRIES}
+    )
+    SELECT id FROM ranked
+    WHERE rn <= ${MAX_PER_CONTADOR}
+    LIMIT ${MAX_PER_RUN}
+  ` as Array<{ id: string }>
+
+  if (!candidates.length) return
+
+  const ids = candidates.map(r => r.id)
+
   // Al reclamar se incrementa intentos de inmediato. Así, aunque el worker muera
   // en seco a la mitad (límite de CPU/memoria) sin llegar al catch, el intento
   // queda contado y el registro no se reintenta infinitamente.
   const claimed = await sql`
     UPDATE facturas
     SET estado = 'procesando', intentos = intentos + 1
-    WHERE id IN (
-      SELECT id FROM facturas
-      WHERE estado = 'en_cola' AND intentos < ${MAX_RETRIES}
-      ORDER BY creado_en
-      LIMIT ${MAX_PER_RUN}
-      FOR UPDATE SKIP LOCKED
-    )
+    WHERE id = ANY(${ids}::uuid[]) AND estado = 'en_cola'
     RETURNING id, cliente_id, imagen_path, tipo, intentos, source_index, source_count
   ` as ClaimedFactura[]
 
   if (!claimed.length) return
 
-  for (let i = 0; i < claimed.length; i++) {
-    await processOne(claimed[i], env, sql)
-  }
+  await Promise.all(claimed.map(f => processOne(f, env, sql)))
 }
 
 async function processOne(
