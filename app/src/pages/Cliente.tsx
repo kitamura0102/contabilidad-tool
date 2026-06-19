@@ -131,7 +131,22 @@ export default function Cliente() {
 
     // Si hay facturas marcadas con el checklist, se exportan ESAS (sin importar
     // el mes seleccionado). Solo cuentan las que ya están 'procesada'.
-    const idsSeleccionados = selectedFacturas.filter(f => f.estado === 'procesada').map(f => f.id)
+    const procesadasSel = selectedFacturas.filter(f => f.estado === 'procesada')
+    const idsSeleccionados = procesadasSel.map(f => f.id)
+
+    // La DGII espera un archivo 606/607 por mes. Si la selección abarca varios
+    // meses, avisar: el header del archivo llevará un solo período (el del selector).
+    if (idsSeleccionados.length > 0) {
+      const meses = Array.from(new Set(procesadasSel.map(f => f.fecha_emision?.slice(0, 7)).filter(Boolean))).sort() as string[]
+      if (meses.length > 1) {
+        const ok = window.confirm(
+          `Seleccionaste facturas de ${meses.length} meses distintos (${meses.join(', ')}).\n\n` +
+          `La DGII espera un archivo 606/607 por mes. El archivo se generará con el período ${periodo} en el encabezado.\n\n` +
+          `¿Exportar de todos modos?`
+        )
+        if (!ok) return
+      }
+    }
 
     if (idsSeleccionados.length === 0) {
       const procesadas = facturas.filter(f => f.tipo === tab && f.estado === 'procesada' && f.fecha_emision?.slice(0, 7) === periodo).length
@@ -211,8 +226,15 @@ export default function Cliente() {
 
   // Facturas marcadas con el checklist que ya están procesadas: si hay alguna,
   // la exportación usa esas (mes-independiente) en vez del mes seleccionado.
-  const selectedProcesadas = selectedFacturas.filter(f => f.estado === 'procesada').length
+  const selectedProcesadasList = selectedFacturas.filter(f => f.estado === 'procesada')
+  const selectedProcesadas = selectedProcesadasList.length
   const puedeExportar = selectedProcesadas > 0 || procesadasDelPeriodo > 0
+  // Meses distintos dentro de la selección: si son varios, se avisa (la DGII
+  // espera un archivo por mes).
+  const mesesSeleccion = Array.from(new Set(
+    selectedProcesadasList.map(f => f.fecha_emision?.slice(0, 7)).filter(Boolean) as string[]
+  )).sort()
+  const selVariosMeses = mesesSeleccion.length > 1
 
   // Tooltip del botón de exportar según el contexto.
   const exportHint = selectedProcesadas > 0
@@ -277,6 +299,11 @@ export default function Cliente() {
             <input placeholder="Buscar por RNC o NCF…" value={q} onChange={e => setQ(e.target.value)} />
           </div>
           {conRevision > 0 && (<span className="badge badge-amber"><AlertTriangle size={11} />{conRevision} por revisar</span>)}
+          {selVariosMeses && (
+            <span className="badge badge-amber" title={`La selección incluye facturas de ${mesesSeleccion.join(', ')}. La DGII espera un archivo por mes.`}>
+              <AlertTriangle size={11} />Selección de {mesesSeleccion.length} meses
+            </span>
+          )}
           <div className="spacer" />
           <span className="t-sm t-muted">{filtered.length} factura{filtered.length !== 1 ? 's' : ''}</span>
         </div>
