@@ -165,7 +165,13 @@ export default function Cliente() {
   }
 
   const periodoYM = periodo
-  const procesadasDelPeriodo = facturas.filter(f => f.tipo === tab && f.estado === 'procesada' && f.fecha_emision?.slice(0, 7) === periodoYM).length
+  const procesadasDelTab = facturas.filter(f => f.tipo === tab && f.estado === 'procesada')
+  const procesadasDelPeriodo = procesadasDelTab.filter(f => f.fecha_emision?.slice(0, 7) === periodoYM).length
+  // Períodos (YYYY-MM) que sí tienen facturas procesadas, para guiar al usuario
+  // cuando el mes seleccionado no coincide con las fechas de las facturas.
+  const periodosConDatos = Array.from(new Set(
+    procesadasDelTab.map(f => f.fecha_emision?.slice(0, 7)).filter(Boolean) as string[]
+  )).sort()
   const hasPending = facturas.some(f => f.estado === 'en_cola' || f.estado === 'procesando')
   const conRevision = facturas.filter(f => f.tipo === tab && (f.estado === 'pendiente_revision' || f.estado === 'error_extraccion')).length
 
@@ -192,6 +198,13 @@ export default function Cliente() {
 
   const tipoLabel = (tab === 'compra' ? '606' : '607') as '606' | '607'
 
+  // Mensaje del tooltip cuando no hay nada que exportar en el mes elegido.
+  const exportDisabledHint = procesadasDelPeriodo > 0
+    ? undefined
+    : periodosConDatos.length > 0
+      ? `No hay facturas procesadas en el mes seleccionado. Hay facturas en: ${periodosConDatos.join(', ')}. Cambia el mes arriba.`
+      : 'Aún no hay facturas procesadas para exportar.'
+
   return (
     <>
       <Topbar
@@ -203,10 +216,10 @@ export default function Cliente() {
         onPeriodoChange={setPeriodo}
         actions={
           <>
-            <button className="btn btn-secondary" onClick={() => handleDownload(tipoLabel, 'txt')} disabled={procesadasDelPeriodo === 0} title="Archivo .txt oficial para la DGII">
+            <button className="btn btn-secondary" onClick={() => handleDownload(tipoLabel, 'txt')} disabled={procesadasDelPeriodo === 0} title={exportDisabledHint ?? 'Archivo .txt oficial para la DGII'}>
               <FileText size={15} />Exportar {tipoLabel} (.txt)
             </button>
-            <button className="btn btn-secondary" onClick={() => handleDownload(tipoLabel, 'xlsx')} disabled={procesadasDelPeriodo === 0} title="Hoja Excel para revisión">
+            <button className="btn btn-secondary" onClick={() => handleDownload(tipoLabel, 'xlsx')} disabled={procesadasDelPeriodo === 0} title={exportDisabledHint ?? 'Hoja Excel para revisión'}>
               <Download size={15} />Excel
             </button>
             <label className="btn btn-primary" style={{ cursor: 'pointer' }}>

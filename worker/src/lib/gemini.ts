@@ -328,8 +328,23 @@ A VECES es un estado de cuenta o listado con MUCHAS filas fiscales (por ejemplo 
 estado de cuenta de tarjetas con una tabla "Comprobante fiscal por cargos"); en ese
 caso cada fila con su propio NCF es una factura.
 
-Identifica CADA comprobante fiscal distinto y extrae sus datos. Devuelve SOLO un
-JSON válido sin markdown, con un objeto por cada factura:
+PROCEDIMIENTO OBLIGATORIO (síguelo en orden, mentalmente, antes de responder):
+1. RECORRE la página y delimita CADA factura como un BLOQUE visual independiente.
+   Una factura = un recuadro/área con su propio encabezado del emisor, su RNC, su
+   NCF, su fecha y su total. Dos facturas lado a lado, o una arriba y otra abajo,
+   son DOS bloques separados aunque estén pegadas. En un listado/estado de cuenta,
+   cada FILA con su propio NCF es un bloque.
+2. ANCLA cada bloque en su NCF (o, si no hay NCF, en su total). Ese NCF identifica
+   la factura.
+3. Para cada bloque, extrae TODOS sus campos ÚNICAMENTE de ese mismo bloque: el
+   RNC, la fecha, el total, el ITBIS, etc. deben estar físicamente DENTRO o JUNTO
+   a ese NCF/bloque. NUNCA tomes el NCF de una factura y el monto, la fecha o el
+   RNC de otra: cada objeto del JSON debe describir UNA sola factura coherente.
+4. VERIFICA antes de responder: si dos facturas tienen NCF distinto, deben tener
+   objetos distintos y sus montos/fechas no deben quedar intercambiados. Si dudas
+   de a qué bloque pertenece un dato, baja su confidence a "low" en vez de adivinar.
+
+Devuelve SOLO un JSON válido sin markdown, con un objeto por cada factura:
 {
   "invoices": [
     {
@@ -353,9 +368,13 @@ JSON válido sin markdown, con un objeto por cada factura:
   ]
 }
 Reglas:
-- Un objeto por CADA comprobante con NCF distinto que veas en la página.
+- Un objeto por CADA bloque/comprobante con NCF distinto que veas en la página.
+- TODOS los campos de un mismo objeto provienen del MISMO bloque. No mezcles datos
+  entre facturas: NCF, RNC, fecha y montos tienen que ser de la misma factura.
+- El orden de salida sigue el orden de lectura: arriba→abajo, izquierda→derecha.
 - Si es un estado de cuenta/listado con muchas filas, extrae TODAS las filas que
-  tengan NCF (pueden ser 10, 15 o más), una por objeto.
+  tengan NCF (pueden ser 10, 15 o más), una por objeto, y toma fecha y monto de la
+  MISMA fila del NCF.
 - Si las filas comparten un mismo RNC emisor que aparece UNA vez en el encabezado
   o el pie de página, usa ese mismo rnc_emisor para todas las filas.
 - Si ves el MISMO NCF dos veces (ej. un ticket de caja y su versión digital de la
