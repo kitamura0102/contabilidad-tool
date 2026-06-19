@@ -138,8 +138,12 @@ export async function downloadReporte(
   periodo: string,
   formato: 'txt' | 'xlsx' = 'txt',
   clienteNombre?: string,
+  ids?: string[],
 ) {
-  const qs = formato === 'xlsx' ? '?formato=xlsx' : ''
+  const params = new URLSearchParams()
+  if (formato === 'xlsx') params.set('formato', 'xlsx')
+  if (ids && ids.length > 0) params.set('ids', ids.join(','))
+  const qs = params.toString() ? `?${params.toString()}` : ''
   const r = await authFetch(token, `/api/reportes/${clienteId}/${tipo}/${periodo}${qs}`)
   if (!r.ok) throw new Error(await r.text())
   const blob = await r.blob()

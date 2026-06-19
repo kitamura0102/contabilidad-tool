@@ -128,13 +128,24 @@ export default function Cliente() {
   async function handleDownload(tipo: '606' | '607', formato: 'txt' | 'xlsx') {
     const token = await getToken()
     if (!token || !id) return
-    const procesadas = facturas.filter(f => f.estado === 'procesada' && f.fecha_emision?.slice(0, 7) === periodo).length
-    if (procesadas === 0) {
-      alert(`No hay facturas procesadas en ${periodo}.\n\nSolo se exportan facturas en estado "Procesada".`)
-      return
+
+    // Si hay facturas marcadas con el checklist, se exportan ESAS (sin importar
+    // el mes seleccionado). Solo cuentan las que ya están 'procesada'.
+    const idsSeleccionados = selectedFacturas.filter(f => f.estado === 'procesada').map(f => f.id)
+
+    if (idsSeleccionados.length === 0) {
+      const procesadas = facturas.filter(f => f.tipo === tab && f.estado === 'procesada' && f.fecha_emision?.slice(0, 7) === periodo).length
+      if (procesadas === 0) {
+        alert(`No hay facturas seleccionadas ni facturas procesadas en ${periodo}.\n\nMarca las facturas que quieres exportar con el checklist, o cambia el mes.\nSolo se exportan facturas en estado "Procesada".`)
+        return
+      }
     }
+
     try {
-      await downloadReporte(token, id, tipo, periodo.replace('-', ''), formato, cliente?.nombre_empresa)
+      await downloadReporte(
+        token, id, tipo, periodo.replace('-', ''), formato, cliente?.nombre_empresa,
+        idsSeleccionados.length > 0 ? idsSeleccionados : undefined,
+      )
     } catch (err) {
       alert(`No se pudo exportar:\n${err instanceof Error ? err.message : String(err)}`)
     }
@@ -198,12 +209,19 @@ export default function Cliente() {
 
   const tipoLabel = (tab === 'compra' ? '606' : '607') as '606' | '607'
 
-  // Mensaje del tooltip cuando no hay nada que exportar en el mes elegido.
-  const exportDisabledHint = procesadasDelPeriodo > 0
-    ? undefined
-    : periodosConDatos.length > 0
-      ? `No hay facturas procesadas en el mes seleccionado. Hay facturas en: ${periodosConDatos.join(', ')}. Cambia el mes arriba.`
-      : 'Aún no hay facturas procesadas para exportar.'
+  // Facturas marcadas con el checklist que ya están procesadas: si hay alguna,
+  // la exportación usa esas (mes-independiente) en vez del mes seleccionado.
+  const selectedProcesadas = selectedFacturas.filter(f => f.estado === 'procesada').length
+  const puedeExportar = selectedProcesadas > 0 || procesadasDelPeriodo > 0
+
+  // Tooltip del botón de exportar según el contexto.
+  const exportHint = selectedProcesadas > 0
+    ? `Exporta las ${selectedProcesadas} factura${selectedProcesadas !== 1 ? 's' : ''} seleccionada${selectedProcesadas !== 1 ? 's' : ''} (de cualquier mes)`
+    : procesadasDelPeriodo > 0
+      ? undefined
+      : periodosConDatos.length > 0
+        ? `No hay facturas procesadas en el mes seleccionado. Marca facturas con el checklist para exportarlas, o cambia el mes (hay facturas en: ${periodosConDatos.join(', ')}).`
+        : 'Aún no hay facturas procesadas para exportar.'
 
   return (
     <>
@@ -216,10 +234,10 @@ export default function Cliente() {
         onPeriodoChange={setPeriodo}
         actions={
           <>
-            <button className="btn btn-secondary" onClick={() => handleDownload(tipoLabel, 'txt')} disabled={procesadasDelPeriodo === 0} title={exportDisabledHint ?? 'Archivo .txt oficial para la DGII'}>
-              <FileText size={15} />Exportar {tipoLabel} (.txt)
+            <button className="btn btn-secondary" onClick={() => handleDownload(tipoLabel, 'txt')} disabled={!puedeExportar} title={exportHint ?? 'Archivo .txt oficial para la DGII'}>
+              <FileText size={15} />Exportar {tipoLabel} (.txt){selectedProcesadas > 0 ? ` (${selectedProcesadas})` : ''}
             </button>
-            <button className="btn btn-secondary" onClick={() => handleDownload(tipoLabel, 'xlsx')} disabled={procesadasDelPeriodo === 0} title={exportDisabledHint ?? 'Hoja Excel para revisión'}>
+            <button className="btn btn-secondary" onClick={() => handleDownload(tipoLabel, 'xlsx')} disabled={!puedeExportar} title={exportHint ?? 'Hoja Excel para revisión'}>
               <Download size={15} />Excel
             </button>
             <label className="btn btn-primary" style={{ cursor: 'pointer' }}>

@@ -46,6 +46,15 @@ reportes.get('/:clienteId/:tipo/:periodo', async (c) => {
     const { clienteId, tipo, periodo } = c.req.param()
     const formato = c.req.query('formato') === 'xlsx' ? 'xlsx' : 'txt'
 
+    // ?ids=uuid,uuid,... → exporta SOLO esas facturas (las marcadas con el
+    // checklist en la UI), sin filtrar por mes. Si no viene, se exporta el mes
+    // completo como antes. El período de la URL se sigue usando para el header
+    // del TXT y el nombre del archivo.
+    const idsParam = c.req.query('ids')
+    const ids = idsParam
+      ? idsParam.split(',').map(s => s.trim()).filter(Boolean)
+      : null
+
     if (!['606', '607'].includes(tipo)) {
       return c.json({ error: 'Tipo debe ser 606 o 607' }, 400)
     }
@@ -58,19 +67,33 @@ reportes.get('/:clienteId/:tipo/:periodo', async (c) => {
     const tipoFactura = tipo === '606' ? 'compra' : 'venta'
 
     const sql = getDb(c.env.DATABASE_URL)
+    // Solo se exportan facturas 'procesada' del cliente y tipo correctos. Cuando
+    // hay ids se filtra por esa lista (mes-independiente); si no, por mes.
+    const facturaQuery = ids && ids.length > 0
+      ? sql`
+          SELECT f.*, c.rnc AS rnc_cliente, c.nombre_empresa
+          FROM facturas f
+          JOIN clientes c ON c.id = f.cliente_id
+          WHERE f.cliente_id = ${clienteId}::uuid
+            AND f.estado = 'procesada'
+            AND f.tipo = ${tipoFactura}
+            AND f.id = ANY(${ids}::uuid[])
+          ORDER BY f.fecha_emision
+        `
+      : sql`
+          SELECT f.*, c.rnc AS rnc_cliente, c.nombre_empresa
+          FROM facturas f
+          JOIN clientes c ON c.id = f.cliente_id
+          WHERE f.cliente_id = ${clienteId}::uuid
+            AND f.estado = 'procesada'
+            AND f.tipo = ${tipoFactura}
+            AND EXTRACT(YEAR  FROM f.fecha_emision) = ${year}::int
+            AND EXTRACT(MONTH FROM f.fecha_emision) = ${month}::int
+          ORDER BY f.fecha_emision
+        `
     const rows = await sql.transaction([
       sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
-      sql`
-        SELECT f.*, c.rnc AS rnc_cliente, c.nombre_empresa
-        FROM facturas f
-        JOIN clientes c ON c.id = f.cliente_id
-        WHERE f.cliente_id = ${clienteId}::uuid
-          AND f.estado = 'procesada'
-          AND f.tipo = ${tipoFactura}
-          AND EXTRACT(YEAR  FROM f.fecha_emision) = ${year}::int
-          AND EXTRACT(MONTH FROM f.fecha_emision) = ${month}::int
-        ORDER BY f.fecha_emision
-      `,
+      facturaQuery,
     ] as Parameters<typeof sql.transaction>[0])
 
     const facturas = (rows as unknown[][])[1] as FacturaRow[]
