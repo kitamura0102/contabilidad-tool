@@ -84,7 +84,7 @@ export default function Sidebar({ className = '', onNavigate }: { className?: st
 
       {user && (
         <button className="nav-profile" onClick={() => go('/app/settings')}>
-          <Avatar name={user.fullName ?? user.primaryEmailAddress?.emailAddress ?? 'U'} size={32} tone="blue" />
+          <Avatar name={user.fullName ?? user.primaryEmailAddress?.emailAddress ?? 'U'} size={32} tone="blue" src={user.imageUrl} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="np-name">{user.fullName ?? user.primaryEmailAddress?.emailAddress}</div>
             <div className="np-plan">Plan Profesional</div>

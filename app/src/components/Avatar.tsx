@@ -8,7 +8,21 @@ const TONES: Record<Tone, [string, string]> = {
   red:   ['#F8D2D2', '#A82323'],
 }
 
-export default function Avatar({ name, size = 30, tone = 'blue' }: { name: string; size?: number; tone?: Tone }) {
+export default function Avatar({ name, size = 30, tone = 'blue', src }: { name: string; size?: number; tone?: Tone; src?: string | null }) {
+  const style: React.CSSProperties = {
+    width: size, height: size, minWidth: size, borderRadius: size,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
+  }
+
+  if (src) {
+    return (
+      <span style={style}>
+        <img src={src} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
+      </span>
+    )
+  }
+
   const initials = name
     .split(/\s+/)
     .filter(w => /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(w[0] ?? ''))
@@ -18,9 +32,8 @@ export default function Avatar({ name, size = 30, tone = 'blue' }: { name: strin
   const [bg, fg] = TONES[tone] ?? TONES.blue
   return (
     <span style={{
-      width: size, height: size, minWidth: size, borderRadius: size,
+      ...style,
       background: bg, color: fg,
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.36, fontWeight: 600, letterSpacing: '.02em',
       fontFamily: 'var(--font-ui)',
     }}>
