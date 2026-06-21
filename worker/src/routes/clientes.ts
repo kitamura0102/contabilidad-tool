@@ -27,11 +27,12 @@ clientes.get('/', async (c) => {
 // GET /api/clientes/:id
 clientes.get('/:id', async (c) => {
   const userId = c.get('userId')
+  const contadorId = c.get('contadorId')
   const sql = getDb(c.env.DATABASE_URL)
 
   const rows = await sql.transaction([
     sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
-    sql`SELECT * FROM clientes WHERE id = ${c.req.param('id')} AND activo = TRUE`,
+    sql`SELECT * FROM clientes WHERE id = ${c.req.param('id')} AND contador_id = ${contadorId}::uuid AND activo = TRUE`,
   ] as Parameters<typeof sql.transaction>[0])
 
   const data = ((rows as unknown[][])[1] as unknown[])[0]
@@ -73,6 +74,7 @@ const updateSchema = z.object({
 // PATCH /api/clientes/:id
 clientes.patch('/:id', zValidator('json', updateSchema), async (c) => {
   const userId = c.get('userId')
+  const contadorId = c.get('contadorId')
   const body = c.req.valid('json')
   const sql = getDb(c.env.DATABASE_URL)
 
@@ -85,6 +87,7 @@ clientes.patch('/:id', zValidator('json', updateSchema), async (c) => {
         sector         = COALESCE(${body.sector ?? null}, sector),
         activo         = COALESCE(${body.activo ?? null}, activo)
       WHERE id = ${c.req.param('id')}
+        AND contador_id = ${contadorId}::uuid
       RETURNING *
     `,
   ] as Parameters<typeof sql.transaction>[0])

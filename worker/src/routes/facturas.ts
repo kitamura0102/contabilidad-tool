@@ -16,6 +16,7 @@ facturas.use('*', requireAuth)
 // GET /api/facturas?cliente_id=&estado=&tipo=&limit=
 facturas.get('/', async (c) => {
   const userId = c.get('userId')
+  const contadorId = c.get('contadorId')
   const { cliente_id, estado, tipo, limit: limitParam } = c.req.query()
   const limit = Math.min(Math.max(parseInt(limitParam ?? '100', 10) || 100, 1), 2000)
   const sql = getDb(c.env.DATABASE_URL)
@@ -26,7 +27,8 @@ facturas.get('/', async (c) => {
       SELECT f.*, c.nombre_empresa
       FROM facturas f
       JOIN clientes c ON c.id = f.cliente_id
-      WHERE (${cliente_id ?? null}::uuid IS NULL OR f.cliente_id = ${cliente_id ?? null}::uuid)
+      WHERE c.contador_id = ${contadorId}::uuid
+        AND (${cliente_id ?? null}::uuid IS NULL OR f.cliente_id = ${cliente_id ?? null}::uuid)
         AND (${estado ?? null}::text IS NULL OR f.estado = ${estado ?? null}::text)
         AND (${tipo ?? null}::text IS NULL OR f.tipo = ${tipo ?? null}::text)
       ORDER BY f.creado_en DESC, f.source_index ASC NULLS LAST
@@ -40,11 +42,18 @@ facturas.get('/', async (c) => {
 // GET /api/facturas/:id
 facturas.get('/:id', async (c) => {
   const userId = c.get('userId')
+  const contadorId = c.get('contadorId')
   const sql = getDb(c.env.DATABASE_URL)
 
   const rows = await sql.transaction([
     sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
-    sql`SELECT * FROM facturas WHERE id = ${c.req.param('id')}`,
+    sql`
+      SELECT f.*
+      FROM facturas f
+      JOIN clientes c ON c.id = f.cliente_id
+      WHERE f.id = ${c.req.param('id')}
+        AND c.contador_id = ${contadorId}::uuid
+    `,
   ] as Parameters<typeof sql.transaction>[0])
 
   const data = ((rows as unknown[][])[1] as unknown[])[0]
@@ -193,6 +202,7 @@ const correctSchema = z.object({
 // PATCH /api/facturas/:id — corrección manual de campos
 facturas.patch('/:id', zValidator('json', correctSchema), async (c) => {
   const userId = c.get('userId')
+  const contadorId = c.get('contadorId')
   const body = c.req.valid('json')
   const sql = getDb(c.env.DATABASE_URL)
 
@@ -230,6 +240,7 @@ facturas.patch('/:id', zValidator('json', correctSchema), async (c) => {
         estado                       = 'procesada',
         revisado_en                  = NOW()
       WHERE id = ${c.req.param('id')}
+        AND cliente_id IN (SELECT id FROM clientes WHERE contador_id = ${contadorId}::uuid)
       RETURNING *
     `,
   ] as Parameters<typeof sql.transaction>[0])
@@ -246,6 +257,7 @@ facturas.patch('/:id', zValidator('json', correctSchema), async (c) => {
 // POST /api/facturas/:id/reintentar
 facturas.post('/:id/reintentar', async (c) => {
   const userId = c.get('userId')
+  const contadorId = c.get('contadorId')
   const sql = getDb(c.env.DATABASE_URL)
 
   const rows = await sql.transaction([
@@ -256,6 +268,7 @@ facturas.post('/:id/reintentar', async (c) => {
         intentos     = 0,
         ultimo_error = NULL
       WHERE id = ${c.req.param('id')}
+        AND cliente_id IN (SELECT id FROM clientes WHERE contador_id = ${contadorId}::uuid)
       RETURNING id
     `,
   ] as Parameters<typeof sql.transaction>[0])
@@ -268,11 +281,17 @@ facturas.post('/:id/reintentar', async (c) => {
 // DELETE /api/facturas/:id
 facturas.delete('/:id', async (c) => {
   const userId = c.get('userId')
+  const contadorId = c.get('contadorId')
   const sql = getDb(c.env.DATABASE_URL)
 
   const rows = await sql.transaction([
     sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
-    sql`DELETE FROM facturas WHERE id = ${c.req.param('id')} RETURNING imagen_path`,
+    sql`
+      DELETE FROM facturas
+      WHERE id = ${c.req.param('id')}
+        AND cliente_id IN (SELECT id FROM clientes WHERE contador_id = ${contadorId}::uuid)
+      RETURNING imagen_path
+    `,
   ] as Parameters<typeof sql.transaction>[0])
 
   const row = (((rows as unknown[][])[1]) as Array<{ imagen_path: string | null }>)[0]
@@ -287,11 +306,18 @@ facturas.delete('/:id', async (c) => {
 // GET /api/facturas/:id/imagen
 facturas.get('/:id/imagen', async (c) => {
   const userId = c.get('userId')
+  const contadorId = c.get('contadorId')
   const sql = getDb(c.env.DATABASE_URL)
 
   const rows = await sql.transaction([
     sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
-    sql`SELECT imagen_path FROM facturas WHERE id = ${c.req.param('id')}`,
+    sql`
+      SELECT f.imagen_path
+      FROM facturas f
+      JOIN clientes c ON c.id = f.cliente_id
+      WHERE f.id = ${c.req.param('id')}
+        AND c.contador_id = ${contadorId}::uuid
+    `,
   ] as Parameters<typeof sql.transaction>[0])
 
   const row = (((rows as unknown[][])[1]) as Array<{ imagen_path: string }>)[0]
