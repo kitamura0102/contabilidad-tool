@@ -70,7 +70,7 @@ export default function Landing() {
             <span className="lp-eyebrow">Software fiscal hecho en RD</span>
             <h1>Ni una factura más <em>tecleada</em> a mano.</h1>
             <p className="lp-lede">
-              Sube las facturas de todos tus clientes —foto del celular o PDF— y la IA de Cuadre saca el{' '}
+              Sube las facturas de todos tus clientes (foto del celular o PDF) y la IA de Cuadre saca el{' '}
               <b>RNC, NCF, fecha, monto e ITBIS</b> por ti. Tú revisas, corriges lo que haga falta
               y exportas el 606 y 607 en el <b>.txt que la Oficina Virtual de la DGII</b> acepta sin pelear.
             </p>
@@ -281,7 +281,7 @@ export default function Landing() {
               <div className="lp-dcard-code">607</div>
               <div>
                 <h3>Registro de Ventas</h3>
-                <p>Las ventas y los comprobantes emitidos. Mismo proceso, mismo .txt oficial — sin volver a teclear nada a mano.</p>
+                <p>Las ventas y los comprobantes emitidos. Mismo proceso, mismo .txt oficial, sin volver a teclear nada a mano.</p>
               </div>
             </div>
           </div>
