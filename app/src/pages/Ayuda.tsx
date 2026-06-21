@@ -4,7 +4,7 @@ import Topbar from '../components/Topbar'
 
 const PASOS = [
   { icon: Upload,   title: 'Sube las facturas', body: 'Entra a un cliente y usa "Subir facturas". Puedes subir varias fotos o PDFs a la vez, separando compras (606) de ventas (607).' },
-  { icon: Sparkles, title: 'La IA extrae los datos', body: 'Cifra lee el RNC emisor, NCF, fecha, monto e ITBIS automáticamente. Las facturas con baja confianza se marcan para que las revises.' },
+  { icon: Sparkles, title: 'La IA extrae los datos', body: 'Cuadre lee el RNC emisor, NCF, fecha, monto e ITBIS automáticamente. Las facturas con baja confianza se marcan para que las revises.' },
   { icon: Inbox,    title: 'Revisa en la Bandeja', body: 'La Bandeja reúne todo lo que necesita atención de todos tus clientes. Corrige con la imagen al lado y usa "Guardar y siguiente" para avanzar.' },
   { icon: FileText, title: 'Exporta a la DGII', body: 'Desde Reportes o desde el cliente, descarga el 606/607 en .txt oficial para la Oficina Virtual, o en Excel para tu respaldo.' },
 ]
@@ -22,7 +22,7 @@ export default function Ayuda() {
 
   return (
     <>
-      <Topbar title="Ayuda" subtitle="Cómo funciona Cifra y preguntas frecuentes" />
+      <Topbar title="Ayuda" subtitle="Cómo funciona Cuadre y preguntas frecuentes" />
 
       <div className="content">
         <div style={{ maxWidth: 760 }}>
@@ -48,7 +48,7 @@ export default function Ayuda() {
             <div className="t-sm" style={{ lineHeight: 1.7 }}>
               El <strong>606</strong> es el Registro de Compras de Bienes y Servicios; el <strong>607</strong> es el
               Registro de Ventas. Ambos se presentan mensualmente a la <strong>DGII</strong> a través de la Oficina
-              Virtual. Cifra arma estos archivos en el formato oficial a partir de las facturas que procesa, para que
+              Virtual. Cuadre arma estos archivos en el formato oficial a partir de las facturas que procesa, para que
               no tengas que transcribir RNC, NCF ni montos a mano.
             </div>
           </div>

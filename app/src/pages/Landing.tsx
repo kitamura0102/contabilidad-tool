@@ -1,127 +1,251 @@
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SignedIn, SignedOut } from '@clerk/clerk-react'
-import {
-  Zap, Upload, Sparkles, FileText, Users, ScanLine,
-  FileSpreadsheet, ArrowRight, Check,
-} from 'lucide-react'
+import './landing.css'
+
+const ArrowRight = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
+    strokeLinecap="round" strokeLinejoin="round" style={{ width: '1.05em', height: '1.05em' }}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </svg>
+)
 
 export default function Landing() {
   const navigate = useNavigate()
-  const goApp = () => navigate('/app')
-  const goSignIn = () => navigate('/sign-in')
+  const navRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const nav = navRef.current
+    if (!nav) return
+    const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 8)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    const els = document.querySelectorAll('.lp-reveal')
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) } }),
+      { threshold: 0.12 }
+    )
+    els.forEach(el => io.observe(el))
+    return () => io.disconnect()
+  }, [])
+
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
 
   return (
-    <div style={{ color: 'var(--text-strong)' }}>
+    <div className="lp">
       {/* ── NAV ── */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 100,
-        background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid var(--border)', padding: '0 28px', height: 60,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <div className="row gap-2">
-          <span style={{ width: 28, height: 28, borderRadius: 7, background: 'linear-gradient(160deg, var(--blue-500), var(--blue-700))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(43,92,230,0.4)' }}>
-            <Zap size={15} strokeWidth={2.2} />
-          </span>
-          <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em' }}>Cifra</span>
+      <header className="lp-nav" ref={navRef}>
+        <div className="lp-wrap lp-nav-in">
+          <a href="/" className="lp-logo">
+            <span className="lp-logo-mark">C</span>
+            Cuadre
+          </a>
+          <nav className="lp-nav-links">
+            <a href="#problema">El antes y el ahora</a>
+            <a href="#pasos">Cómo funciona</a>
+            <a href="#dgii">Compatible DGII</a>
+          </nav>
+          <div>
+            <SignedIn>
+              <button className="lp-btn lp-btn-primary" style={{ padding: '.62rem 1.1rem', minHeight: 0, fontSize: '.94rem' }} onClick={() => navigate('/app')}>
+                Ir al app <ArrowRight />
+              </button>
+            </SignedIn>
+            <SignedOut>
+              <button className="lp-btn lp-btn-primary" style={{ padding: '.62rem 1.1rem', minHeight: 0, fontSize: '.94rem' }} onClick={() => navigate('/sign-in')}>
+                Empezar gratis
+              </button>
+            </SignedOut>
+          </div>
         </div>
-        <div className="row gap-2">
-          <SignedIn>
-            <button className="btn btn-primary" onClick={goApp}>Ir al app<ArrowRight size={15} /></button>
-          </SignedIn>
-          <SignedOut>
-            <button className="btn btn-ghost" onClick={goSignIn}>Iniciar sesión</button>
-            <button className="btn btn-primary" onClick={goSignIn}>Empezar gratis</button>
-          </SignedOut>
-        </div>
-      </nav>
+      </header>
 
       {/* ── HERO ── */}
-      <section style={{
-        background: 'var(--ink)',
-        backgroundImage: [
-          'radial-gradient(ellipse 70% 40% at 50% -5%, rgba(43,92,230,0.22), transparent)',
-          'linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px)',
-          'linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px)',
-        ].join(', '),
-        backgroundSize: 'auto, 46px 46px, 46px 46px',
-        padding: '84px 24px 96px', textAlign: 'center',
-      }}>
-        <div className="land-up land-up-1" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(43,92,230,0.12)', border: '1px solid rgba(43,92,230,0.28)', borderRadius: 999, padding: '6px 15px', marginBottom: 34 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--blue-300)', boxShadow: '0 0 8px var(--blue-300)' }} />
-          <span style={{ fontSize: 12.5, color: 'var(--blue-300)', fontWeight: 500 }}>Hecho para contadores dominicanos</span>
-        </div>
+      <section className="lp-hero">
+        <div className="lp-wrap lp-hero-grid">
+          <div>
+            <span className="lp-eyebrow">Software fiscal hecho en RD</span>
+            <h1>Ni una factura más <em>tecleada</em> a mano.</h1>
+            <p className="lp-lede">
+              Sube las facturas de todos tus clientes —foto del celular o PDF— y la IA de Cuadre saca el{' '}
+              <b>RNC, NCF, fecha, monto e ITBIS</b> por ti. Tú revisas, corriges lo que haga falta
+              y exportas el 606 y 607 en el <b>.txt que la Oficina Virtual de la DGII</b> acepta sin pelear.
+            </p>
+            <div className="lp-cta-row">
+              <SignedIn>
+                <button className="lp-btn lp-btn-primary" onClick={() => navigate('/app')}>
+                  Ir al app <ArrowRight />
+                </button>
+              </SignedIn>
+              <SignedOut>
+                <button className="lp-btn lp-btn-primary" onClick={() => navigate('/sign-in')}>
+                  Empezar gratis <ArrowRight />
+                </button>
+                <button className="lp-btn lp-btn-ghost" onClick={() => scrollTo('pasos')}>
+                  Ver cómo funciona
+                </button>
+              </SignedOut>
+            </div>
+            <p className="lp-cta-note">
+              <span className="lp-cta-dot" />
+              Sin tarjeta. Tus primeras facturas corren gratis.
+            </p>
+          </div>
 
-        <h1 className="land-up land-up-2" style={{ fontSize: 'clamp(40px, 7vw, 72px)', fontWeight: 600, color: '#fff', lineHeight: 1.04, letterSpacing: '-0.03em', maxWidth: 820, margin: '0 auto 22px', textWrap: 'balance' }}>
-          Tu 606 y 607,{' '}
-          <span style={{ color: 'var(--blue-300)' }}>listos en minutos</span>
-        </h1>
-
-        <p className="land-up land-up-3" style={{ fontSize: 'clamp(16px, 2vw, 19px)', color: 'var(--text-on-dark-muted)', maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>
-          Sube las facturas de todos tus clientes. La IA extrae RNC, NCF e ITBIS — y desde una sola bandeja las revisas y exportas sin entrar cliente por cliente.
-        </p>
-
-        <div className="row gap-3 land-up land-up-4" style={{ justifyContent: 'center', flexWrap: 'wrap', marginBottom: 68 }}>
-          <SignedIn>
-            <button className="btn btn-primary" style={heroBtn} onClick={goApp}>Ir al app<ArrowRight size={16} /></button>
-          </SignedIn>
-          <SignedOut>
-            <button className="btn btn-primary" style={heroBtn} onClick={goSignIn}>Empezar gratis<ArrowRight size={16} /></button>
-            <button className="btn" style={heroGhost} onClick={() => scrollTo('como-funciona')}>Ver cómo funciona</button>
-          </SignedOut>
-        </div>
-
-        <div className="land-up land-up-5" style={{ display: 'flex', justifyContent: 'center', padding: '0 16px' }}>
-          <AppMockup />
+          <div style={{ position: 'relative' }}>
+            <div className="lp-mock lp-reveal">
+              <div className="lp-mock-bar">
+                <span className="lp-mock-dot" /><span className="lp-mock-dot" /><span className="lp-mock-dot" />
+                <span className="lp-mock-ttl">bandeja · marzo 2026</span>
+                <span className="lp-mock-pill">48 facturas</span>
+              </div>
+              <div className="lp-mock-head">
+                <span>Cliente · RNC</span>
+                <span className="lp-col-ncf">NCF</span>
+                <span className="lp-col-date">Fecha</span>
+                <span style={{ textAlign: 'right' }}>Monto</span>
+                <span>Estado</span>
+              </div>
+              {[
+                { cli: 'Ferretería Pérez',    rnc: '131-29384-5', ncf: 'B0100000034',  date: '03/03/26', mny: 'RD$ 18,420', ok: true },
+                { cli: 'Colmado La Bendición', rnc: '130-77120-9', ncf: 'B0200001188',  date: '05/03/26', mny: 'RD$ 6,975',  ok: true },
+                { cli: 'Repuestos del Cibao',  rnc: '101-55039-2', ncf: 'B01000000??', date: '08/03/26', mny: 'RD$ 41,300', ok: false, flagNcf: true },
+                { cli: 'Farmacia Carol',        rnc: '130-04412-7', ncf: 'B0100002201',  date: '11/03/26', mny: 'RD$ 2,340',  ok: true },
+              ].map((r, i) => (
+                <div key={i} className={`lp-frow${!r.ok ? ' flag' : ''}`}>
+                  <div>
+                    <div className="lp-fcli">{r.cli}</div>
+                    <div className="lp-frnc">{r.rnc}</div>
+                  </div>
+                  <div className="lp-frnc lp-col-ncf">
+                    {r.flagNcf
+                      ? <span>B01000000<span style={{ color: 'var(--lp-amber)' }}>??</span></span>
+                      : r.ncf}
+                  </div>
+                  <div className="lp-frnc lp-col-date">{r.date}</div>
+                  <div className="lp-fmny">{r.mny}</div>
+                  <div>
+                    {r.ok
+                      ? <span className="lp-tag lp-tag-ok"><span className="lp-tag-ic" />Verificado</span>
+                      : <span className="lp-tag lp-tag-warn"><span className="lp-tag-ic" />Revisar</span>}
+                  </div>
+                </div>
+              ))}
+              <div className="lp-mock-foot">
+                <span className="lp-mock-sel">47 de 48 listas · 1 por revisar</span>
+                <div className="lp-mock-exp">
+                  <span className="lp-chip">606.txt</span>
+                  <span className="lp-chip">607.txt</span>
+                  <span className="lp-chip lp-chip-go">Exportar a la DGII</span>
+                </div>
+              </div>
+            </div>
+            <div className="lp-factura-float lp-reveal">
+              <div className="lp-factura-ph">
+                <span className="lp-factura-lab">foto de<br />factura<br />· celular ·</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ── CÓMO FUNCIONA ── */}
-      <section id="como-funciona" style={{ padding: '88px 24px', background: 'var(--bg-surface)' }}>
-        <div style={{ maxWidth: 960, margin: '0 auto' }}>
-          <h2 style={sectionTitle}>De la foto al reporte, en cuatro pasos</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 32, marginTop: 56 }}>
+      {/* ── ANTES / AHORA ── */}
+      <section className="lp-band" id="problema">
+        <div className="lp-wrap">
+          <div className="lp-sec-head lp-reveal">
+            <span className="lp-eyebrow">El antes y el ahora</span>
+            <h2>Lo que hoy te quita el fin de semana, Cuadre te lo cuadra mientras tomas café.</h2>
+            <p>Transcribir factura por factura no es trabajo de contador. Es trabajo de máquina. Así que dejamos que la máquina lo haga.</p>
+          </div>
+          <div className="lp-cmp">
+            <div className="lp-panel lp-panel-antes lp-reveal">
+              <span className="lp-ph-tag">Hoy, a mano</span>
+              <h3>Cliente por cliente, dígito por dígito</h3>
+              <ul className="lp-steplist">
+                {[
+                  'Abres cada cliente en su propia hoja.',
+                  'Tecleas RNC, NCF, fecha, monto e ITBIS de cada factura.',
+                  'Cruzas los dedos para que no se te fuera un dígito.',
+                  'Repites. Cientos de veces. Para cada cliente.',
+                ].map((t, i) => (
+                  <li key={i}><span className="n">{i + 1}</span>{t}</li>
+                ))}
+              </ul>
+              <div className="lp-meter">
+                <span className="lp-meter-big">≈ 3 hrs</span>
+                <span className="lp-meter-unit">por cliente, y la vista cansada</span>
+              </div>
+            </div>
+            <div className="lp-panel lp-panel-ahora lp-reveal">
+              <span className="lp-ph-tag">Con Cuadre</span>
+              <h3>Todo el montón de una vez</h3>
+              <ul className="lp-steplist">
+                {[
+                  'Subes las facturas de todos tus clientes juntas.',
+                  'La IA llena cada campo sola, sin que teclees nada.',
+                  'Revisas solo lo que te marca y lo corriges al lado de la foto.',
+                  'Exportas el 606 y 607 en lote. Listo para la Oficina Virtual.',
+                ].map((t, i) => (
+                  <li key={i}><span className="n">{i + 1}</span>{t}</li>
+                ))}
+              </ul>
+              <div className="lp-meter">
+                <span className="lp-meter-big">≈ 12 min</span>
+                <span className="lp-meter-unit">todos tus clientes, sin errores de tecleo</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── PASOS ── */}
+      <section id="pasos">
+        <div className="lp-wrap">
+          <div className="lp-sec-head lp-reveal">
+            <span className="lp-eyebrow">Cómo funciona</span>
+            <h2>Cuatro pasos. El resto lo pone Cuadre.</h2>
+          </div>
+          <div className="lp-steps">
             {[
-              { n: 1, icon: Upload, title: 'Sube la factura', desc: 'Foto desde el celular o PDF desde la computadora. Varias a la vez, separadas por cliente y período.' },
-              { n: 2, icon: Sparkles, title: 'La IA extrae los datos', desc: 'Cifra lee RNC, NCF, fecha, monto e ITBIS. Si la confianza es baja, te avisa para que revises.' },
-              { n: 3, icon: ScanLine, title: 'Revisa con la imagen', desc: 'Corrige cualquier campo con la factura al lado. Avanza por la bandeja con "Guardar y siguiente".' },
-              { n: 4, icon: FileText, title: 'Exporta a la DGII', desc: 'Descarga el 606 o 607 en .txt oficial para la Oficina Virtual, o en Excel para tu respaldo.' },
-            ].map(step => (
-              <div key={step.n} className="feat-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                  <span className="feat-icon" style={{ width: 36, height: 36, borderRadius: 9, background: 'var(--blue-50)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <step.icon size={18} />
-                  </span>
-                  <span className="mono" style={{ fontSize: 13, color: 'var(--text-faint)', fontWeight: 600 }}>0{step.n}</span>
-                </div>
-                <h3 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', marginBottom: 8, color: 'var(--text-strong)' }}>{step.title}</h3>
-                <p style={{ fontSize: 14.5, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>{step.desc}</p>
+              { n: '01', title: 'Sube como sea',            desc: 'Tira las facturas como te lleguen: foto del celular, escaneo o PDF. De todos tus clientes, todas juntas.',                                               arrow: true },
+              { n: '02', title: 'La IA las lee',             desc: 'Cuadre extrae el RNC, NCF, fecha, monto e ITBIS de cada factura en segundos. Tú no tecleas ni un número.',                                             arrow: true },
+              { n: '03', title: 'Revisa con la foto al lado', desc: 'Cada renglón muestra su factura original. Lo que la IA no vio claro te lo marca para que le des un ojo.',                                              arrow: true },
+              { n: '04', title: 'Exporta a la DGII',         desc: 'Genera el 606 y 607 en el .txt oficial de la Oficina Virtual, o en Excel. Listo para subir, sin reformatear.', arrow: false },
+            ].map(s => (
+              <div key={s.n} className="lp-step lp-reveal">
+                <div className="lp-step-num">{s.n}</div>
+                <h3>{s.title}</h3>
+                <p>{s.desc}</p>
+                {s.arrow && <span className="lp-step-arrow">→</span>}
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── FEATURES ── */}
-      <section style={{ padding: '88px 24px', background: 'var(--bg-page)', borderTop: '1px solid var(--border)' }}>
-        <div style={{ maxWidth: 960, margin: '0 auto' }}>
-          <h2 style={sectionTitle}>Todo lo que necesita un contador moderno</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '40px 48px', marginTop: 56 }}>
+      {/* ── DIFERENCIADORES ── */}
+      <section className="lp-band">
+        <div className="lp-wrap">
+          <div className="lp-sec-head lp-reveal">
+            <span className="lp-eyebrow">Por qué Cuadre</span>
+            <h2>Pensado por quien también odiaba teclear facturas.</h2>
+          </div>
+          <div className="lp-feat">
             {[
-              { icon: Zap, title: 'OCR instantáneo con IA', desc: 'Extrae RNC, NCF, fecha, monto e ITBIS automáticamente. Si la confianza es baja, te avisa para que revises.' },
-              { icon: FileText, title: 'Imágenes y PDFs', desc: 'Sube fotos desde el celular o PDFs desde la PC. Comprime las imágenes antes de enviar para no gastar datos.' },
-              { icon: FileSpreadsheet, title: 'Formato oficial DGII', desc: 'Genera el 606 y 607 en el formato pipe-delimitado (.txt) exacto que acepta la Oficina Virtual.' },
-              { icon: Users, title: 'Multi-cliente', desc: 'Gestiona todos tus clientes desde un solo lugar, cada uno con su historial de facturas y reportes.' },
-              { icon: ScanLine, title: 'Verificación con la imagen', desc: 'Ve la factura y los datos extraídos lado a lado. Corrige cualquier campo con un clic.' },
-              { icon: Sparkles, title: 'Bandeja en lote', desc: 'Revisa, reintenta o exporta facturas de todos tus clientes a la vez, sin entrar uno por uno.' },
+              { c: 'c1', title: 'Una sola bandeja, todos tus clientes', desc: 'Revisa y exporta en lote sin entrar cliente por cliente. Todo lo del mes en una misma pantalla, ordenado.' },
+              { c: 'c2', title: 'Te avisa cuando no está segura',       desc: 'Si la confianza del OCR baja, la IA te marca el renglón en amarillo en vez de adivinar. Tú decides en dos segundos.' },
+              { c: 'c3', title: 'El .txt que la DGII sí acepta',        desc: 'Formato oficial de la Oficina Virtual, ya cuadrado. Sin pelear con el portal ni reformatear columnas en Excel.' },
+              { c: 'c4', title: 'Hecho para multi-cliente',             desc: 'Cada cliente con su RNC, sus NCF y sus reportes. Cambias de cliente sin perder el hilo ni mezclar nada.' },
             ].map(f => (
-              <div key={f.title} className="feat-card">
-                <span className="feat-icon" style={{ display: 'inline-flex', width: 38, height: 38, borderRadius: 9, background: 'var(--blue-50)', color: 'var(--accent)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
-                  <f.icon size={19} />
-                </span>
-                <div style={{ fontWeight: 600, fontSize: 15.5, marginBottom: 6, letterSpacing: '-0.01em', color: 'var(--text-strong)' }}>{f.title}</div>
-                <div style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6 }}>{f.desc}</div>
+              <div key={f.c} className={`lp-fcard lp-fcard-${f.c} lp-reveal`}>
+                <div className="lp-fcard-ico"><span /></div>
+                <div>
+                  <h3>{f.title}</h3>
+                  <p>{f.desc}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -129,113 +253,85 @@ export default function Landing() {
       </section>
 
       {/* ── DGII ── */}
-      <section style={{ padding: '72px 24px', background: 'var(--bg-surface)', borderTop: '1px solid var(--border)' }}>
-        <div style={{ maxWidth: 680, margin: '0 auto', textAlign: 'center' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: 'var(--blue-50)', border: '1px solid var(--blue-100)', borderRadius: 10, padding: '12px 20px', marginBottom: 22 }}>
-            <span style={{ fontSize: 20 }}>🇩🇴</span>
-            <span style={{ fontWeight: 600, color: 'var(--accent-text)', fontSize: 14.5 }}>Compatible con la DGII de República Dominicana</span>
+      <section id="dgii">
+        <div className="lp-wrap lp-dgii">
+          <div className="lp-reveal">
+            <span className="lp-eyebrow">Compatible con la DGII</span>
+            <h2 style={{ fontSize: 'clamp(1.9rem, 3.4vw, 2.8rem)', marginTop: '1rem' }}>
+              Los formatos que ya conoces, sin trabajo extra.
+            </h2>
+            <p style={{ color: 'var(--lp-ink-soft)', fontSize: '1.08rem', marginTop: '1rem', maxWidth: '46ch' }}>
+              Cuadre genera los dos registros tal como los pide la Dirección General de Impuestos
+              Internos de República Dominicana. Lo que sale, entra a la Oficina Virtual.
+            </p>
+            <div className="lp-seal">
+              <span className="lp-seal-ck">✓</span>
+              Validado contra el formato vigente de la Oficina Virtual
+            </div>
           </div>
-          <p style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.7, margin: 0 }}>
-            Los reportes siguen el formato oficial de la{' '}
-            <strong style={{ color: 'var(--text)' }}>Dirección General de Impuestos Internos</strong>: 606 (Registro de Compras) y 607 (Registro de Ventas), listos para subir a la Oficina Virtual.
-          </p>
+          <div className="lp-dgii-cards">
+            <div className="lp-dcard lp-reveal">
+              <div className="lp-dcard-code">606</div>
+              <div>
+                <h3>Registro de Compras</h3>
+                <p>Bienes y servicios que compraron tus clientes. Cuadre arma el archivo con cada RNC, NCF, fecha, monto e ITBIS, listo para la Oficina Virtual.</p>
+              </div>
+            </div>
+            <div className="lp-dcard lp-dcard-607 lp-reveal">
+              <div className="lp-dcard-code">607</div>
+              <div>
+                <h3>Registro de Ventas</h3>
+                <p>Las ventas y los comprobantes emitidos. Mismo proceso, mismo .txt oficial — sin volver a teclear nada a mano.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* ── FINAL CTA ── */}
-      <section style={{ padding: '92px 24px', background: 'var(--ink)', backgroundImage: 'radial-gradient(ellipse 55% 70% at 50% 115%, rgba(43,92,230,0.18), transparent)', textAlign: 'center' }}>
-        <h2 style={{ fontSize: 'clamp(28px, 5vw, 48px)', fontWeight: 600, color: '#fff', letterSpacing: '-0.025em', marginBottom: 14, textWrap: 'balance' }}>
-          ¿Listo para empezar?
-        </h2>
-        <p style={{ fontSize: 16.5, color: 'var(--text-on-dark-muted)', marginBottom: 36 }}>
-          Crea tu cuenta gratis y sube tu primera factura hoy.
-        </p>
-        <SignedIn>
-          <button className="btn btn-primary" style={heroBtn} onClick={goApp}>Ir al app<ArrowRight size={16} /></button>
-        </SignedIn>
-        <SignedOut>
-          <button className="btn btn-primary" style={heroBtn} onClick={goSignIn}>Crear cuenta gratis<ArrowRight size={16} /></button>
-        </SignedOut>
+      <section id="final">
+        <div className="lp-wrap">
+          <div className="lp-final lp-reveal">
+            <span className="lp-eyebrow">Empieza hoy</span>
+            <h2>Que este sea el último cierre que tecleas a mano.</h2>
+            <p>Crea tu cuenta, sube las facturas de un cliente y mira el 606 salir solo. Sin tarjeta, sin compromiso.</p>
+            <div className="lp-cta-row">
+              <SignedIn>
+                <button className="lp-btn lp-btn-primary" onClick={() => navigate('/app')}>
+                  Ir al app <ArrowRight />
+                </button>
+              </SignedIn>
+              <SignedOut>
+                <button className="lp-btn lp-btn-primary" onClick={() => navigate('/sign-in')}>
+                  Crear cuenta gratis <ArrowRight />
+                </button>
+                <button className="lp-btn lp-btn-ghost" onClick={() => navigate('/sign-in')}>
+                  Iniciar sesión
+                </button>
+              </SignedOut>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{ background: 'var(--ink)', borderTop: '1px solid var(--border-nav)', padding: '20px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <div className="row gap-2">
-          <span style={{ width: 24, height: 24, borderRadius: 6, background: 'linear-gradient(160deg, var(--blue-500), var(--blue-700))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Zap size={13} strokeWidth={2.2} />
-          </span>
-          <span style={{ fontWeight: 600, color: '#fff', fontSize: 15 }}>Cifra</span>
+      <footer className="lp-footer">
+        <div className="lp-wrap lp-foot-in">
+          <a href="/" className="lp-logo" style={{ fontSize: '1.3rem' }}>
+            <span className="lp-logo-mark" style={{ width: 30, height: 30, fontSize: '.95rem' }}>C</span>
+            Cuadre
+          </a>
+          <div className="lp-foot-links">
+            <a href="#problema">El antes y el ahora</a>
+            <a href="#pasos">Cómo funciona</a>
+            <a href="#dgii">Compatible DGII</a>
+          </div>
+          <div className="lp-foot-rd">
+            <span className="lp-flag"><i className="b" /><i className="r" /><i className="b" /></span>
+            Hecho en República Dominicana
+          </div>
         </div>
-        <span style={{ fontSize: 13, color: 'var(--text-on-dark-muted)' }}>© 2026 · Hecho en República Dominicana 🇩🇴</span>
       </footer>
     </div>
   )
 }
-
-// ── App mockup: Bandeja (cross-client queue) ──
-function AppMockup() {
-  const rows = [
-    { estado: 'Revisar',   cls: 'badge-amber',   cliente: 'Distribuidora García', ncf: 'B0100000089', total: 'RD$ 14,160' },
-    { estado: 'Revisar',   cls: 'badge-amber',   cliente: 'Almacén del Norte',    ncf: 'E310000033552', total: 'RD$ 4,720' },
-    { estado: 'Error',     cls: 'badge-red',     cliente: 'Ferretería Pérez',     ncf: '—',           total: '—' },
-    { estado: 'Revisar',   cls: 'badge-amber',   cliente: 'Comercial Méndez',     ncf: 'B0100000234', total: 'RD$ 5,900' },
-  ]
-  return (
-    <div style={{
-      background: 'var(--bg-surface)', borderRadius: 14, overflow: 'hidden', width: '100%', maxWidth: 640,
-      textAlign: 'left', fontSize: 13,
-      boxShadow: '0 0 0 1px rgba(255,255,255,0.06), 0 32px 80px rgba(0,0,0,0.5), 0 0 90px rgba(43,92,230,0.08)',
-    }}>
-      {/* Window chrome */}
-      <div style={{ background: 'var(--slate-900)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-        {['#ff5f57', '#ffbd2e', '#28c840'].map(c => <span key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
-        <div className="mono" style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 5, padding: '3px 12px', fontSize: 11, color: 'var(--text-on-dark-muted)', marginLeft: 10 }}>
-          cifra.app/bandeja
-        </div>
-      </div>
-      {/* Header */}
-      <div style={{ padding: '13px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div className="row gap-2">
-          <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-strong)' }}>Bandeja</span>
-          <span className="badge badge-amber" style={{ height: 20 }}>4 por revisar</span>
-        </div>
-        <span style={{ background: 'var(--accent)', color: '#fff', padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500 }}>Marcar revisadas</span>
-      </div>
-      {/* Filter tabs */}
-      <div style={{ padding: '0 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 16 }}>
-        {['Todas', 'Por revisar', 'Errores'].map((t, i) => (
-          <span key={t} style={{
-            fontSize: 12, padding: '8px 0', color: i === 1 ? 'var(--text-strong)' : 'var(--text-muted)',
-            fontWeight: i === 1 ? 600 : 400,
-            borderBottom: i === 1 ? '2px solid var(--accent)' : '2px solid transparent',
-          }}>{t}{i === 1 ? ' 4' : i === 2 ? ' 1' : ' 5'}</span>
-        ))}
-      </div>
-      {/* Table header */}
-      <div style={{ display: 'grid', gridTemplateColumns: '16px 80px 1fr 110px 80px', padding: '7px 16px', gap: 12, background: 'var(--slate-50)', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
-        <span />
-        <span>Estado</span><span>Cliente</span><span>NCF</span><span style={{ textAlign: 'right' }}>Total</span>
-      </div>
-      {/* Rows */}
-      {rows.map((r, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '16px 80px 1fr 110px 80px', padding: '9px 16px', gap: 12, borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : 'none', alignItems: 'center' }}>
-          <span style={{ width: 12, height: 12, borderRadius: 3, border: '1.5px solid var(--border-strong)', display: 'inline-block' }} />
-          <span className={`badge ${r.cls}`} style={{ height: 20 }}>{r.estado}</span>
-          <span style={{ fontSize: 12, color: 'var(--text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.cliente}</span>
-          <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{r.ncf}</span>
-          <span className="mono" style={{ fontSize: 12, color: 'var(--text-strong)', textAlign: 'right' }}>{r.total}</span>
-        </div>
-      ))}
-      {/* Bulk bar */}
-      <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', background: 'var(--slate-50)', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>4 seleccionadas</span>
-        <span style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11 }}>↺ Reintentar</span>
-        <span style={{ background: 'var(--accent)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500 }}>✓ Marcar revisadas</span>
-      </div>
-    </div>
-  )
-}
-
-const heroBtn: React.CSSProperties = { height: 46, padding: '0 28px', fontSize: 15, fontWeight: 500, boxShadow: '0 0 28px rgba(43,92,230,0.4)' }
-const heroGhost: React.CSSProperties = { height: 46, padding: '0 26px', fontSize: 15, background: 'rgba(255,255,255,0.07)', color: 'var(--text-on-dark)', border: '1px solid rgba(255,255,255,0.14)' }
-const sectionTitle: React.CSSProperties = { textAlign: 'center', fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 600, letterSpacing: '-0.025em', lineHeight: 1.15, color: 'var(--text-strong)', textWrap: 'balance', margin: 0 }

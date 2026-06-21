@@ -23,7 +23,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span style={{ width: 24, height: 24, borderRadius: 6, background: 'linear-gradient(160deg, var(--blue-500), var(--blue-700))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Zap size={13} strokeWidth={2.2} />
             </span>
-            <span className="brand-name" style={{ color: '#fff', fontWeight: 600 }}>Cifra</span>
+            <span className="brand-name" style={{ color: '#fff', fontWeight: 600 }}>Cuadre</span>
           </div>
         </div>
         {children}

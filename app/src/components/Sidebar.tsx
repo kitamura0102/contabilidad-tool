@@ -46,7 +46,7 @@ export default function Sidebar({ className = '', onNavigate }: { className?: st
     <aside className={`sidebar ${className}`}>
       <div className="brand">
         <div className="brand-mark"><Zap size={17} strokeWidth={2} /></div>
-        <span className="brand-name">Cifra</span>
+        <span className="brand-name">Cuadre</span>
       </div>
 
       <div className="nav-section">
