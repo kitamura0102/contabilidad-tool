@@ -1,3 +1,7 @@
+// Aviso de descuadre aritmético detectado en el backend (ver worker reconciliar()).
+export type ValidacionAviso = { campo: string; mensaje: string }
+export type Validacion = { ok: boolean; warnings: ValidacionAviso[] }
+
 export type Factura = {
   id: string
   cliente_id: string
@@ -15,6 +19,7 @@ export type Factura = {
   tipo_ingreso:       string | null
   forma_pago:         string | null
   monto_total_cent:   number | null
+  monto_subtotal_cent: number | null
   monto_itbis_cent:   number | null
   tasa_itbis:         number | null
   // Desglose de montos (AI extrae si aparece en factura)
@@ -33,7 +38,8 @@ export type Factura = {
   itbis_adelantar_cent:        number | null
   itbis_percibido_cent:        number | null
   // Meta
-  confidence_json:    Record<string, unknown> | null
+  confidence_json:    Record<string, { value: string | null; confidence: 'high' | 'medium' | 'low' }> | null
+  validacion_json:    Validacion | null
   ultimo_error:       string | null
   creado_en:          string
   // Multi-factura
@@ -71,6 +77,23 @@ export function friendlyError(msg: string): string {
   if (/Imagen no encontrada/i.test(msg)) return 'No se encontró la imagen. Vuelve a subirla.'
   if (/JSON|Unexpected|SyntaxError|vac[ií]a/i.test(msg)) return 'La IA no pudo leer la factura. Verifica que la foto sea legible.'
   return 'Error al procesar. Reintenta o corrige los datos a mano.'
+}
+
+// Problema detectado en un campo: baja confianza del OCR o descuadre aritmético.
+// El descuadre es más concreto, así que pisa a la baja confianza.
+export type CampoIssue = { level: 'baja' | 'descuadre'; mensaje: string }
+
+export function fieldIssues(f: Factura): Record<string, CampoIssue> {
+  const out: Record<string, CampoIssue> = {}
+  for (const [campo, v] of Object.entries(f.confidence_json ?? {})) {
+    if (v && typeof v === 'object' && v.confidence === 'low') {
+      out[campo] = { level: 'baja', mensaje: 'La IA leyó este campo con baja confianza.' }
+    }
+  }
+  for (const w of f.validacion_json?.warnings ?? []) {
+    out[w.campo] = { level: 'descuadre', mensaje: w.mensaje }
+  }
+  return out
 }
 
 export const fmtMoney = (cents: number | null) =>

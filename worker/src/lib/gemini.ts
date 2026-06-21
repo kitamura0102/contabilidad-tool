@@ -14,6 +14,7 @@ const SINGLE_PROMPT = `Extrae los datos de esta factura dominicana. Devuelve SOL
   "tipo_id":         { "value": "1", "confidence": "high" },
   "fecha_emision":   { "value": "YYYY-MM-DD", "confidence": "..." },
   "monto_total":     { "value": "5000.00", "confidence": "..." },
+  "monto_subtotal":  { "value": "4237.29", "confidence": "..." },
   "monto_itbis":     { "value": "762.71", "confidence": "..." },
   "tasa_itbis":      { "value": "16|18|null", "confidence": "..." },
   "monto_servicios": { "value": null, "confidence": "low" },
@@ -32,6 +33,9 @@ Reglas:
 - ncf_modificado: solo si la factura es nota de crédito/débito y referencia una factura anterior
 - fecha_emision: formato YYYY-MM-DD
 - monto_total: número decimal, total final incluyendo ITBIS
+- monto_subtotal: base gravada ANTES del ITBIS (subtotal/base imponible). Debe cumplirse
+  monto_subtotal + monto_itbis + propina + isc + otros = monto_total. Léelo dígito por
+  dígito y verifica esa suma antes de responder; si no cuadra, revisa los montos.
 - monto_itbis: número decimal. Si dice ITBIS=0 o exento, "0.00"
 - tasa_itbis: "16", "18", o null si exento/no aplica
 - monto_servicios / monto_bienes: solo si la factura los desglosa separadamente
@@ -90,6 +94,7 @@ Extrae los datos de TODAS las facturas. Devuelve SOLO un JSON válido con esta e
       "tipo_id":         { "value": "1", "confidence": "high" },
       "fecha_emision":   { "value": "YYYY-MM-DD", "confidence": "..." },
       "monto_total":     { "value": "0.00", "confidence": "..." },
+      "monto_subtotal":  { "value": "0.00", "confidence": "..." },
       "monto_itbis":     { "value": "0.00", "confidence": "..." },
       "tasa_itbis":      { "value": null, "confidence": "low" },
       "monto_servicios": { "value": null, "confidence": "low" },
@@ -110,6 +115,7 @@ Reglas:
 - ncf: formato B+10 o E+12. null si no hay
 - fecha_emision: YYYY-MM-DD
 - monto_total: total final incluyendo ITBIS
+- monto_subtotal: base gravada antes del ITBIS. Verifica que subtotal + ITBIS + propina + isc + otros = total
 - tasa_itbis: "16", "18", o null
 - Ordena las facturas de arriba a abajo, izquierda a derecha
 Solo JSON, sin texto adicional.`
@@ -236,6 +242,7 @@ function azulRowToExtraction(r: { ncf?: string | null; fecha_emision?: string | 
     tipo_id:         { value: '1', confidence: 'high' },
     fecha_emision:   { value: r.fecha_emision ?? null, confidence: r.fecha_emision ? 'high' : 'low' },
     monto_total:     { value: r.monto_total ?? null, confidence: r.monto_total ? 'high' : 'low' },
+    monto_subtotal:  low,
     monto_itbis:     low,
     tasa_itbis:      low,
     monto_servicios: low,
@@ -306,6 +313,7 @@ function emptyExtraction(): ExtractionResult {
     tipo_id:         low,
     fecha_emision:   low,
     monto_total:     low,
+    monto_subtotal:  low,
     monto_itbis:     low,
     tasa_itbis:      low,
     monto_servicios: low,
@@ -354,6 +362,7 @@ Devuelve SOLO un JSON válido sin markdown, con un objeto por cada factura:
       "tipo_id":         { "value": "1", "confidence": "high" },
       "fecha_emision":   { "value": "YYYY-MM-DD", "confidence": "..." },
       "monto_total":     { "value": "5000.00", "confidence": "..." },
+      "monto_subtotal":  { "value": "4237.29", "confidence": "..." },
       "monto_itbis":     { "value": "762.71", "confidence": "..." },
       "tasa_itbis":      { "value": "16|18|null", "confidence": "..." },
       "monto_servicios": { "value": null, "confidence": "low" },
@@ -387,6 +396,8 @@ Reglas:
 - ncf: formato B+10 dígitos o E+12 dígitos. Si no hay NCF legible, value null.
 - fecha_emision: formato YYYY-MM-DD.
 - monto_total: total final con ITBIS incluido, número con punto decimal sin comas de miles.
+- monto_subtotal: base gravada antes del ITBIS (subtotal/base imponible). Léelo dígito por
+  dígito y verifica que subtotal + ITBIS + propina + isc + otros = total antes de responder.
 - monto_itbis: si dice exento o ITBIS 0, "0.00".
 - tasa_itbis: "16", "18" o null.
 - tipo_bs: "1"=bienes, "2"=servicios, "3"=mixto. Default "2".

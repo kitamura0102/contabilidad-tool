@@ -109,18 +109,19 @@ facturas.post('/', async (c) => {
               INSERT INTO facturas (
                 cliente_id, imagen_path, tipo, estado,
                 rnc_emisor, tipo_id, ncf, ncf_modificado, fecha_emision,
-                monto_total_cent, monto_itbis_cent, tasa_itbis,
+                monto_total_cent, monto_subtotal_cent, monto_itbis_cent, tasa_itbis,
                 monto_servicios_cent, monto_bienes_cent, isc_cent, otros_impuestos_cent, propina_cent,
                 tipo_ingreso, forma_pago, tipo_bs,
-                confidence_json, source_index, source_count, creado_en
+                confidence_json, validacion_json, source_index, source_count, creado_en
               )
               VALUES (
                 ${clienteId}::uuid, ${key}, ${tipo}, ${cols.estado},
                 ${cols.rnc}, ${cols.tipoId}, ${cols.ncf}, ${cols.ncfModificado}, ${cols.fechaEmision}::date,
-                ${cols.montoTotal}, ${cols.montoItbis}, ${cols.tasaItbis},
+                ${cols.montoTotal}, ${cols.montoSubtotal}, ${cols.montoItbis}, ${cols.tasaItbis},
                 ${cols.montoServicios}, ${cols.montoBienes}, ${cols.isc}, ${cols.otrosImpuestos}, ${cols.propina},
                 ${cols.tipoIngreso}, ${cols.formaPago}, ${cols.tipoBs},
                 ${JSON.stringify(analysis.invoices[i])}::jsonb,
+                ${cols.validacion ? JSON.stringify(cols.validacion) : null}::jsonb,
                 ${total > 1 ? i : null}, ${total > 1 ? total : null}, ${batchTime}::timestamptz
               )
               RETURNING *
@@ -181,6 +182,7 @@ const correctSchema = z.object({
   forma_pago:           z.string().optional(),
   // Montos (en pesos decimales desde el frontend, convertidos a cents aquí)
   monto_total_cent:         z.number().int().optional(),
+  monto_subtotal_cent:      z.number().int().optional(),
   monto_itbis_cent:         z.number().int().optional(),
   tasa_itbis:               z.union([z.literal(16), z.literal(18)]).optional(),
   monto_servicios_cent:     z.number().int().optional(),
@@ -222,6 +224,7 @@ facturas.patch('/:id', zValidator('json', correctSchema), async (c) => {
         tipo_ingreso                 = COALESCE(${body.tipo_ingreso ?? null}, tipo_ingreso),
         forma_pago                   = COALESCE(${body.forma_pago ?? null}, forma_pago),
         monto_total_cent             = COALESCE(${body.monto_total_cent ?? null}, monto_total_cent),
+        monto_subtotal_cent          = COALESCE(${body.monto_subtotal_cent ?? null}, monto_subtotal_cent),
         monto_itbis_cent             = COALESCE(${body.monto_itbis_cent ?? null}, monto_itbis_cent),
         tasa_itbis                   = COALESCE(${body.tasa_itbis ?? null}, tasa_itbis),
         monto_servicios_cent         = COALESCE(${body.monto_servicios_cent ?? null}, monto_servicios_cent),
@@ -238,6 +241,7 @@ facturas.patch('/:id', zValidator('json', correctSchema), async (c) => {
         itbis_adelantar_cent         = COALESCE(${body.itbis_adelantar_cent ?? null}, itbis_adelantar_cent),
         itbis_percibido_cent         = COALESCE(${body.itbis_percibido_cent ?? null}, itbis_percibido_cent),
         estado                       = 'procesada',
+        validacion_json              = NULL,
         revisado_en                  = NOW()
       WHERE id = ${c.req.param('id')}
         AND cliente_id IN (SELECT id FROM clientes WHERE contador_id = ${contadorId}::uuid)

@@ -145,6 +145,7 @@ async function applyExtraction(
       ncf_modificado           = ${cols.ncfModificado},
       fecha_emision            = ${cols.fechaEmision}::date,
       monto_total_cent         = ${cols.montoTotal},
+      monto_subtotal_cent      = ${cols.montoSubtotal},
       monto_itbis_cent         = ${cols.montoItbis},
       tasa_itbis               = ${cols.tasaItbis},
       monto_servicios_cent     = ${cols.montoServicios},
@@ -156,6 +157,7 @@ async function applyExtraction(
       forma_pago               = ${cols.formaPago},
       tipo_bs                  = ${cols.tipoBs},
       confidence_json          = ${JSON.stringify(e)}::jsonb,
+      validacion_json          = ${cols.validacion ? JSON.stringify(cols.validacion) : null}::jsonb,
       estado                   = ${cols.estado},
       ultimo_error             = NULL
     WHERE id = ${id}

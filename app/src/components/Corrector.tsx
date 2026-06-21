@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { patchFactura, fetchFacturaImagen, reintentarFactura, deleteFactura } from '../lib/api'
 import {
-  Factura, friendlyError, fmtMoney, centsToPesos, pesosToCents,
+  Factura, CampoIssue, fieldIssues, friendlyError, fmtMoney, centsToPesos, pesosToCents,
   TIPO_ID_LABEL, TIPO_BS_LABEL, TIPO_INGRESO_LABEL, FORMA_PAGO_LABEL,
 } from '../lib/factura'
 import FacturaBadge from './FacturaBadge'
@@ -27,6 +27,7 @@ type EditFields = {
   tasa_itbis: string
   // Montos auto
   monto_total: string
+  monto_subtotal: string
   monto_itbis: string
   monto_servicios: string
   monto_bienes: string
@@ -57,6 +58,7 @@ function initEdit(f: Factura): EditFields {
     forma_pago:           f.forma_pago ?? '',
     tasa_itbis:           f.tasa_itbis != null ? String(f.tasa_itbis) : '',
     monto_total:          centsToPesos(f.monto_total_cent),
+    monto_subtotal:       centsToPesos(f.monto_subtotal_cent),
     monto_itbis:          centsToPesos(f.monto_itbis_cent),
     monto_servicios:      centsToPesos(f.monto_servicios_cent),
     monto_bienes:         centsToPesos(f.monto_bienes_cent),
@@ -91,6 +93,7 @@ function editToPatch(ef: EditFields): Record<string, unknown> {
   const maybeCents = (key: string, v: string) => { const c = mc(v); if (c !== undefined) patch[key] = c }
 
   maybeCents('monto_total_cent',              ef.monto_total)
+  maybeCents('monto_subtotal_cent',           ef.monto_subtotal)
   maybeCents('monto_itbis_cent',              ef.monto_itbis)
   maybeCents('monto_servicios_cent',          ef.monto_servicios)
   maybeCents('monto_bienes_cent',             ef.monto_bienes)
@@ -247,6 +250,10 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
     setEditFields(f => f ? { ...f, [key]: v } : f)
 
   const incompleto = editFields && (!editFields.rnc_emisor || !editFields.ncf || !editFields.monto_total)
+
+  // Campos que la IA leyó con baja confianza o que no cuadran aritméticamente.
+  const issues = fieldIssues(current)
+  const descuadres = current.validacion_json?.warnings ?? []
 
   return (
     <div className="flow">
@@ -421,9 +428,20 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
               </div>
             )}
             {current.estado === 'pendiente_revision' && (
-              <div className="row gap-3" style={{ marginBottom: 16, padding: '10px 13px', background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 8 }}>
-                <AlertTriangle size={16} style={{ color: 'var(--amber-600)', flexShrink: 0 }} />
-                <div className="t-sm" style={{ color: 'var(--amber-700)' }}>OCR con baja confianza. Verifica los campos contra la imagen.</div>
+              <div className="row gap-3" style={{ marginBottom: 16, padding: '10px 13px', background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 8, alignItems: 'flex-start' }}>
+                <AlertTriangle size={16} style={{ color: 'var(--amber-600)', flexShrink: 0, marginTop: 1 }} />
+                <div className="t-sm" style={{ color: 'var(--amber-700)' }}>
+                  {descuadres.length > 0 ? (
+                    <>
+                      <div style={{ fontWeight: 500 }}>Los montos no cuadran:</div>
+                      <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
+                        {descuadres.map((w, i) => <li key={i}>{w.mensaje}</li>)}
+                      </ul>
+                    </>
+                  ) : (
+                    'OCR con baja confianza. Revisa los campos resaltados contra la imagen.'
+                  )}
+                </div>
               </div>
             )}
             {current.estado === 'error_extraccion' && current.ultimo_error && (
@@ -442,7 +460,7 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
                 <SectionLabel>Emisor</SectionLabel>
                 <div className="row gap-3">
                   <div style={{ flex: 1 }}>
-                    <EF label="RNC / Cédula" value={editFields.rnc_emisor} mono onChange={set('rnc_emisor')} />
+                    <EF label="RNC / Cédula" value={editFields.rnc_emisor} mono onChange={set('rnc_emisor')} issue={issues.rnc_emisor} />
                   </div>
                   <div style={{ width: 130 }}>
                     <label className="field-label">Tipo ID</label>
@@ -454,7 +472,7 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
                 </div>
                 <div className="row gap-3">
                   <div style={{ flex: 1 }}>
-                    <EF label="NCF" value={editFields.ncf} mono onChange={set('ncf')} placeholder="B01... o E31..." />
+                    <EF label="NCF" value={editFields.ncf} mono onChange={set('ncf')} placeholder="B01... o E31..." issue={issues.ncf} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <EF label="NCF Modificado" value={editFields.ncf_modificado} mono onChange={set('ncf_modificado')} placeholder="nota crédito/débito" />
@@ -462,7 +480,7 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
                 </div>
                 <div className="row gap-3">
                   <div style={{ flex: 1 }}>
-                    <EF label="Fecha comprobante" value={editFields.fecha_emision} type="date" onChange={set('fecha_emision')} />
+                    <EF label="Fecha comprobante" value={editFields.fecha_emision} type="date" onChange={set('fecha_emision')} issue={issues.fecha_emision} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <EF label="Fecha pago" value={editFields.fecha_pago} type="date" onChange={set('fecha_pago')} />
@@ -487,10 +505,11 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
                 {/* ── Sección: Montos ── */}
                 <SectionLabel style={{ marginTop: 20 }}>Montos</SectionLabel>
                 <div className="row gap-3">
-                  <EF label="Total facturado (RD$)" value={editFields.monto_total} type="number" mono onChange={set('monto_total')} />
-                  <EF label="ITBIS (RD$)" value={editFields.monto_itbis} type="number" mono onChange={set('monto_itbis')} />
+                  <EF label="Total facturado (RD$)" value={editFields.monto_total} type="number" mono onChange={set('monto_total')} issue={issues.monto_total} />
+                  <EF label="Subtotal / base (RD$)" value={editFields.monto_subtotal} type="number" mono onChange={set('monto_subtotal')} issue={issues.monto_subtotal} />
                 </div>
                 <div className="row gap-3">
+                  <EF label="ITBIS (RD$)" value={editFields.monto_itbis} type="number" mono onChange={set('monto_itbis')} issue={issues.monto_itbis} />
                   <div style={{ width: 130 }}>
                     <label className="field-label">Tasa ITBIS</label>
                     <select className="input" value={editFields.tasa_itbis} onChange={e => set('tasa_itbis')(e.target.value)}>
@@ -499,6 +518,8 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
                       <option value="18">18%</option>
                     </select>
                   </div>
+                </div>
+                <div className="row gap-3">
                   <div style={{ flex: 1 }}>
                     <label className="field-label">Forma de pago</label>
                     <select className="input" value={editFields.forma_pago} onChange={e => set('forma_pago')(e.target.value)}>
@@ -508,14 +529,14 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
                   </div>
                 </div>
                 <div className="row gap-3">
-                  <EF label="Monto servicios" value={editFields.monto_servicios} type="number" mono onChange={set('monto_servicios')} />
-                  <EF label="Monto bienes" value={editFields.monto_bienes} type="number" mono onChange={set('monto_bienes')} />
+                  <EF label="Monto servicios" value={editFields.monto_servicios} type="number" mono onChange={set('monto_servicios')} issue={issues.monto_servicios} />
+                  <EF label="Monto bienes" value={editFields.monto_bienes} type="number" mono onChange={set('monto_bienes')} issue={issues.monto_bienes} />
                 </div>
                 <div className="row gap-3">
-                  <EF label="ISC (Imp. Selectivo)" value={editFields.isc} type="number" mono onChange={set('isc')} />
-                  <EF label="Otros impuestos" value={editFields.otros_impuestos} type="number" mono onChange={set('otros_impuestos')} />
+                  <EF label="ISC (Imp. Selectivo)" value={editFields.isc} type="number" mono onChange={set('isc')} issue={issues.isc} />
+                  <EF label="Otros impuestos" value={editFields.otros_impuestos} type="number" mono onChange={set('otros_impuestos')} issue={issues.otros_impuestos} />
                 </div>
-                <EF label="Propina legal (RD$)" value={editFields.propina} type="number" mono onChange={set('propina')} />
+                <EF label="Propina legal (RD$)" value={editFields.propina} type="number" mono onChange={set('propina')} issue={issues.propina} />
 
                 {/* ── Sección: ITBIS/ISR manual ── */}
                 <SectionLabel style={{ marginTop: 20 }}>Retenciones (manual)</SectionLabel>
@@ -590,13 +611,18 @@ function SectionLabel({ children, style }: { children: React.ReactNode; style?: 
   return <div className="upper-label" style={{ marginBottom: 12, ...style }}>{children}</div>
 }
 
-function EF({ label, value, type = 'text', mono, onChange, placeholder }: {
+function EF({ label, value, type = 'text', mono, onChange, placeholder, issue }: {
   label: string; value: string; type?: string; mono?: boolean
-  onChange: (v: string) => void; placeholder?: string
+  onChange: (v: string) => void; placeholder?: string; issue?: CampoIssue
 }) {
+  // Descuadre aritmético = rojo (dato probablemente errado); baja confianza = ámbar.
+  const tint = issue?.level === 'descuadre' ? 'var(--red-600)' : 'var(--amber-500)'
   return (
     <div style={{ marginBottom: 12, flex: 1 }}>
-      <label className="field-label">{label}</label>
+      <label className="field-label row gap-2" style={issue ? { color: tint } : undefined}>
+        {label}
+        {issue && <AlertTriangle size={12} style={{ color: tint }} />}
+      </label>
       <input
         className={`input${mono ? ' mono' : ''}`}
         type={type}
@@ -604,7 +630,11 @@ function EF({ label, value, type = 'text', mono, onChange, placeholder }: {
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder ?? '—'}
+        style={issue ? { borderColor: tint, boxShadow: `0 0 0 1px ${tint}` } : undefined}
       />
+      {issue && (
+        <div style={{ fontSize: 11, color: tint, marginTop: 4 }}>{issue.mensaje}</div>
+      )}
     </div>
   )
 }

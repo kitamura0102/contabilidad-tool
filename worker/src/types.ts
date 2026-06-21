@@ -29,6 +29,7 @@ export type ExtractionResult = {
   tipo_id:            Campo<'1' | '2' | '3'>  // 1=RNC 2=Cédula 3=Pasaporte
   fecha_emision:      Campo
   monto_total:        Campo
+  monto_subtotal:     Campo      // base gravada (antes de ITBIS), para cuadre
   monto_itbis:        Campo
   tasa_itbis:         Campo<'16' | '18'>
   monto_servicios:    Campo      // desglose servicios
