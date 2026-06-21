@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Menu, Zap } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import Sidebar from './Sidebar'
+import CuadreMark from './CuadreMark'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [navOpen, setNavOpen] = useState(false)
@@ -20,9 +21,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Menu size={20} />
           </button>
           <div className="row gap-2">
-            <span style={{ width: 24, height: 24, borderRadius: 6, background: 'linear-gradient(160deg, var(--blue-500), var(--blue-700))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Zap size={13} strokeWidth={2.2} />
-            </span>
+            <CuadreMark size={26} variant="light" />
             <span className="brand-name" style={{ color: '#fff', fontWeight: 600 }}>Cuadre</span>
           </div>
         </div>

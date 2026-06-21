@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/clerk-react'
-import { Users, Inbox, FileText, Settings, HelpCircle, Zap, ChevronRight } from 'lucide-react'
+import { Users, Inbox, FileText, Settings, HelpCircle, ChevronRight } from 'lucide-react'
 import { getFacturas } from '../lib/api'
 import Avatar from './Avatar'
+import CuadreMark from './CuadreMark'
 
 const NAV = [
   { id: 'clientes',  label: 'Clientes',      icon: Users,    path: '/app' },
@@ -45,7 +46,7 @@ export default function Sidebar({ className = '', onNavigate }: { className?: st
   return (
     <aside className={`sidebar ${className}`}>
       <div className="brand">
-        <div className="brand-mark"><Zap size={17} strokeWidth={2} /></div>
+        <CuadreMark size={28} variant="light" />
         <span className="brand-name">Cuadre</span>
       </div>
 

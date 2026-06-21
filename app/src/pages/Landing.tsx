@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SignedIn, SignedOut } from '@clerk/clerk-react'
+import CuadreMark from '../components/CuadreMark'
 import './landing.css'
 
 const ArrowRight = () => (
@@ -40,7 +41,7 @@ export default function Landing() {
       <header className="lp-nav" ref={navRef}>
         <div className="lp-wrap lp-nav-in">
           <a href="/" className="lp-logo">
-            <span className="lp-logo-mark">C</span>
+            <CuadreMark size={34} variant="light" />
             Cuadre
           </a>
           <nav className="lp-nav-links">
@@ -318,7 +319,7 @@ export default function Landing() {
       <footer className="lp-footer">
         <div className="lp-wrap lp-foot-in">
           <a href="/" className="lp-logo" style={{ fontSize: '1.3rem' }}>
-            <span className="lp-logo-mark" style={{ width: 30, height: 30, fontSize: '.95rem' }}>C</span>
+            <CuadreMark size={30} variant="light" />
             Cuadre
           </a>
           <div className="lp-foot-links">
