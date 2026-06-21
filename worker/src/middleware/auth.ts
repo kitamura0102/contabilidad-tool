@@ -1,5 +1,5 @@
 import { createMiddleware } from 'hono/factory'
-import { verifyToken } from '@clerk/backend'
+import { verifyToken, createClerkClient } from '@clerk/backend'
 import { getDb } from '../lib/db'
 import type { Env, Variables } from '../types'
 
@@ -19,14 +19,26 @@ export const requireAuth = createMiddleware<{ Bindings: Env; Variables: Variable
       return c.json({ error: 'Token inválido' }, 401)
     }
 
-    // Buscar o crear el registro del contador
+    // Obtener nombre y email del perfil de Clerk
+    let nombre = 'Contador'
+    let email: string | null = null
+    try {
+      const clerk = createClerkClient({ secretKey: c.env.CLERK_SECRET_KEY })
+      const user = await clerk.users.getUser(userId)
+      nombre = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Contador'
+      email = user.emailAddresses[0]?.emailAddress ?? null
+    } catch (e) {
+      console.error('clerk.users.getUser error:', e)
+    }
+
+    // Buscar o crear el registro del contador, sincronizando nombre y email
     const sql = getDb(c.env.DATABASE_URL)
     const rows = await sql.transaction([
       sql`SELECT set_config('app.current_user_id', ${userId}, TRUE)`,
       sql`
-        INSERT INTO contadores (clerk_id, nombre)
-        VALUES (${userId}, 'Contador')
-        ON CONFLICT (clerk_id) DO NOTHING
+        INSERT INTO contadores (clerk_id, nombre, email)
+        VALUES (${userId}, ${nombre}, ${email})
+        ON CONFLICT (clerk_id) DO UPDATE SET nombre = EXCLUDED.nombre, email = EXCLUDED.email
       `,
       sql`SELECT id FROM contadores WHERE clerk_id = ${userId}`,
     ] as Parameters<typeof sql.transaction>[0])
