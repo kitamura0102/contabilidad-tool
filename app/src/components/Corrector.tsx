@@ -131,7 +131,10 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
   const [actionError, setActionError] = useState<string | null>(null)
   const [zoom, setZoom]         = useState(1)
   const [duplicateInfo, setDuplicateInfo] = useState<{ id: string; ncf: string | null } | null>(null)
-  const resolved = useRef(0)
+  const resolved   = useRef(0)
+  const scrollRef  = useRef<HTMLDivElement>(null)
+  const dragging   = useRef(false)
+  const dragOrigin = useRef({ x: 0, y: 0, sl: 0, st: 0 })
 
   const current = queue[idx]
   const isLast  = idx + 1 >= queue.length
@@ -334,7 +337,23 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
               <button className="btn btn-ghost btn-sm" style={{ color: 'var(--slate-400)', fontSize: 11 }} onClick={() => setZoom(1)}>Reset</button>
             </div>
           )}
-          <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: zoom === 1 ? 'center' : 'flex-start', justifyContent: zoom === 1 ? 'center' : 'flex-start', padding: 28 }}>
+          <div
+            ref={scrollRef}
+            style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: zoom === 1 ? 'center' : 'flex-start', justifyContent: zoom === 1 ? 'center' : 'flex-start', padding: 28, cursor: zoom > 1 ? 'grab' : 'default' }}
+            onMouseDown={e => {
+              if (zoom <= 1 || !scrollRef.current) return
+              dragging.current = true
+              dragOrigin.current = { x: e.clientX, y: e.clientY, sl: scrollRef.current.scrollLeft, st: scrollRef.current.scrollTop }
+              e.preventDefault()
+            }}
+            onMouseMove={e => {
+              if (!dragging.current || !scrollRef.current) return
+              scrollRef.current.scrollLeft = dragOrigin.current.sl - (e.clientX - dragOrigin.current.x)
+              scrollRef.current.scrollTop  = dragOrigin.current.st - (e.clientY - dragOrigin.current.y)
+            }}
+            onMouseUp={() => { dragging.current = false }}
+            onMouseLeave={() => { dragging.current = false }}
+          >
             {imagenLoading ? (
               <div className="ai-processing">
                 <div className="ai-orb"><Sparkles size={22} /></div>
@@ -353,12 +372,16 @@ export default function Corrector({ queue, startIndex, onClose, onChanged, onCom
                     objectFit: 'contain',
                     borderRadius: 6,
                     boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
-                    cursor: zoom < 4 ? 'zoom-in' : 'zoom-out',
+                    cursor: zoom > 1 ? 'inherit' : 'zoom-in',
                     transform: `scale(${zoom})`,
                     transformOrigin: 'top left',
                     transition: 'transform 0.15s',
+                    userSelect: 'none',
                   }}
-                  onClick={() => setZoom(z => z >= 4 ? 1 : Math.min(4, z + 0.5))}
+                  onClick={e => {
+                    if (dragging.current) return
+                    setZoom(z => z >= 4 ? 1 : Math.min(4, z + 0.5))
+                  }}
                 />
               )
             ) : (
