@@ -500,15 +500,15 @@
   overflow: hidden;
 }
 .lp-final::after {
-  content: "606 607 RNC NCF ITBIS 606 607";
+  content: "606 · 607 · RNC · NCF · ITBIS";
   position: absolute;
   inset: auto 0 -.3rem 0;
   font-family: "Space Mono", monospace;
   font-size: 3.5rem;
   font-weight: 700;
   color: color-mix(in oklab, var(--lp-paper) 7%, transparent);
-  white-space: nowrap;
   letter-spacing: .3em;
+  text-align: center;
   pointer-events: none;
 }
 .lp-final .lp-eyebrow { color: var(--lp-clay-tint); }
