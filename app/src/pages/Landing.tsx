@@ -328,7 +328,7 @@ export default function Landing() {
             <a href="#dgii">Compatible DGII</a>
           </div>
           <div className="lp-foot-rd">
-            <span className="lp-flag"><i className="b" /><i className="r" /><i className="b" /></span>
+            <span className="lp-flag-emoji">🇩🇴</span>
             Hecho en República Dominicana
           </div>
         </div>

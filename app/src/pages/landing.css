@@ -560,17 +560,7 @@
   align-items: center;
   gap: .5rem;
 }
-.lp-flag {
-  display: inline-flex;
-  width: 22px;
-  height: 15px;
-  border-radius: 2px;
-  overflow: hidden;
-  border: 1px solid var(--lp-line);
-}
-.lp-flag i { flex: 1; height: 100%; display: block; }
-.lp-flag .b { background: oklch(0.45 0.13 255); }
-.lp-flag .r { background: oklch(0.55 0.18 25); }
+
 
 /* ── reveal ── */
 .lp-reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
